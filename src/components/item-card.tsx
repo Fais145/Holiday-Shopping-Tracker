@@ -44,8 +44,8 @@ export function ItemCard({
   const currentStore = getStoreById(stores, item.currentStoreId)
   const backupStores = item.backupStoreIds.map((id) => getStoreById(stores, id)).filter(Boolean) as Store[]
   const progress = getProgressPercentage(item)
-  const priorityInfo = priorityConfig[item.priority]
-  const categoryInfo = categoryConfig[item.category]
+  const priorityInfo = priorityConfig[item.priority] || priorityConfig["B"]
+  const categoryInfo = categoryConfig[item.category] || categoryConfig["misc"]
 
   if (compact) {
     return (
