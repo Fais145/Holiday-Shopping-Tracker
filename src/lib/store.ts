@@ -263,6 +263,30 @@ const defaultItems: Item[] = [
   },
 ]
 
+// Migration helper: convert old priority values to new S/A/B/C system
+function migratePriority(priority: string): Priority {
+  const migration: Record<string, Priority> = {
+    "must-have": "S",
+    "want": "A",
+    "if-time": "C",
+    "S": "S",
+    "A": "A",
+    "B": "B",
+    "C": "C",
+  }
+  return migration[priority] || "B"
+}
+
+// Safe accessor for priorityConfig
+export function getPriorityConfig(priority: Priority | string) {
+  return priorityConfig[priority as Priority] || priorityConfig["B"]
+}
+
+// Safe accessor for categoryConfig
+export function getCategoryConfig(category: Category | string) {
+  return categoryConfig[category as Category] || categoryConfig["misc"]
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -415,6 +439,15 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "yv-japan-buy-quest",
+      onRehydrateStorage: () => (state) => {
+        // Migrate old priority values to new S/A/B/C system on load
+        if (state?.items) {
+          state.items = state.items.map((item) => ({
+            ...item,
+            priority: migratePriority(item.priority as string),
+          }))
+        }
+      },
     }
   )
 )

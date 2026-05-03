@@ -10,6 +10,8 @@ import {
   type Category,
   type Priority,
   categoryConfig,
+  getCategoryConfig,
+  getPriorityConfig,
   priorityConfig,
   useAppStore,
 } from "@/lib/store"

@@ -16,8 +16,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
-  categoryConfig,
-  priorityConfig,
+  getCategoryConfig,
+  getPriorityConfig,
   useAppStore,
   getStoreById,
 } from "@/lib/store"
@@ -154,7 +154,7 @@ export function BoughtView() {
                     <div
                       className={cn(
                         "size-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0",
-                        priorityConfig[item.priority].color
+                        getPriorityConfig(item.priority).color
                       )}
                     >
                       {item.priority}
@@ -169,16 +169,16 @@ export function BoughtView() {
                         {item.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {item.quantityBought}x · {categoryConfig[item.category].label}
+                        {item.quantityBought}x · {getCategoryConfig(item.category).label}
                       </p>
                     </div>
                     
                     {/* Category Badge */}
                     <Badge
                       variant="secondary"
-                      className={cn(categoryConfig[item.category].color, "text-xs shrink-0")}
+                      className={cn(getCategoryConfig(item.category).color, "text-xs shrink-0")}
                     >
-                      {categoryConfig[item.category].label}
+                      {getCategoryConfig(item.category).label}
                     </Badge>
                   </motion.div>
                 ))}
@@ -216,7 +216,7 @@ export function BoughtView() {
                     <div
                       className={cn(
                         "size-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
-                        priorityConfig[item.priority].color
+                        getPriorityConfig(item.priority).color
                       )}
                     >
                       {item.priority}
@@ -292,7 +292,7 @@ export function BoughtView() {
                 <div
                   className={cn(
                     "size-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 opacity-60",
-                    priorityConfig[item.priority].color
+                    getPriorityConfig(item.priority).color
                   )}
                 >
                   {item.priority}

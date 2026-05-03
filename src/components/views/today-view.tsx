@@ -6,7 +6,7 @@ import { useState } from "react"
 import { ItemCard } from "@/components/item-card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { getStoreById, priorityConfig, useAppStore } from "@/lib/store"
+import { getStoreById, getPriorityConfig, priorityConfig, useAppStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function TodayView() {

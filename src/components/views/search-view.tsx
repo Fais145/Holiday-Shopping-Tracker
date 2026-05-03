@@ -12,6 +12,8 @@ import {
   type Priority,
   type Status,
   categoryConfig,
+  getCategoryConfig,
+  getPriorityConfig,
   priorityConfig,
   getStoreById,
   useAppStore,

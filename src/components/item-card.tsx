@@ -17,10 +17,10 @@ import { Progress } from "@/components/ui/progress"
 import {
   type Item,
   type Store,
-  categoryConfig,
+  getCategoryConfig,
   getProgressPercentage,
+  getPriorityConfig,
   getStoreById,
-  priorityConfig,
   useAppStore,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -44,8 +44,8 @@ export function ItemCard({
   const currentStore = getStoreById(stores, item.currentStoreId)
   const backupStores = item.backupStoreIds.map((id) => getStoreById(stores, id)).filter(Boolean) as Store[]
   const progress = getProgressPercentage(item)
-  const priorityInfo = priorityConfig[item.priority] || priorityConfig["B"]
-  const categoryInfo = categoryConfig[item.category] || categoryConfig["misc"]
+  const priorityInfo = getPriorityConfig(item.priority)
+  const categoryInfo = getCategoryConfig(item.category)
 
   if (compact) {
     return (
