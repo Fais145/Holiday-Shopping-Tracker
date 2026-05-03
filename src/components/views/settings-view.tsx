@@ -22,12 +22,28 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { useAppStore } from "@/lib/store"
+import {
+  BUILTIN_CATEGORY_IDS,
+  isQuestComplete,
+  showsOnTodayView,
+  useAppStore,
+} from "@/lib/store"
+import { useAppBackNavigation } from "@/hooks/use-app-back-navigation"
 import { cn } from "@/lib/utils"
 
 export function SettingsView() {
-  const { stores, items, addStore, deleteStore, exportData, importData, setActiveTab } =
-    useAppStore()
+  const {
+    stores,
+    items,
+    categories,
+    addStore,
+    deleteStore,
+    addCategory,
+    removeCategory,
+    exportData,
+    importData,
+  } = useAppStore()
+  const goBack = useAppBackNavigation("/stores")
   const [showAddStore, setShowAddStore] = useState(false)
   const [newStoreName, setNewStoreName] = useState("")
   const [newStoreArea, setNewStoreArea] = useState("")
@@ -38,17 +54,18 @@ export function SettingsView() {
   const [importError, setImportError] = useState("")
   const [copied, setCopied] = useState(false)
   const [importSuccess, setImportSuccess] = useState(false)
+  const [newCategoryLabel, setNewCategoryLabel] = useState("")
 
   // Stats
-  const huntingCount = items.filter((i) => i.status === "hunting").length
-  const boughtCount = items.filter((i) => i.status === "bought").length
+  const huntingCount = items.filter((i) => showsOnTodayView(i)).length
+  const boughtCount = items.filter((i) => isQuestComplete(i)).length
   const packedCount = items.filter((i) => i.isPacked).length
 
   const handleAddStore = () => {
-    if (!newStoreName.trim() || !newStoreArea.trim()) return
+    if (!newStoreName.trim()) return
     addStore({
       name: newStoreName.trim(),
-      area: newStoreArea.trim(),
+      area: newStoreArea.trim() || "Unset",
       notes: newStoreNotes.trim() || undefined,
       hours: newStoreHours.trim() || undefined,
     })
@@ -57,6 +74,11 @@ export function SettingsView() {
     setNewStoreNotes("")
     setNewStoreHours("")
     setShowAddStore(false)
+  }
+
+  const handleAddCategory = () => {
+    const id = addCategory(newCategoryLabel)
+    if (id) setNewCategoryLabel("")
   }
 
   const handleExport = () => {
@@ -113,9 +135,11 @@ export function SettingsView() {
           variant="ghost"
           size="icon"
           className="size-10 rounded-xl"
-          onClick={() => setActiveTab("today")}
+          type="button"
+          onClick={() => goBack()}
+          aria-label="Go back"
         >
-          <ArrowLeft className="size-5" />
+          <ArrowLeft className="size-5" aria-hidden />
         </Button>
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center size-12 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10">
@@ -161,6 +185,71 @@ export function SettingsView() {
         </motion.div>
       </div>
 
+      {/* Categories */}
+      <section className="flex flex-col gap-3">
+        <h2 className="font-bold text-lg">Categories</h2>
+        <p className="text-sm text-muted-foreground">
+          Item tags for lookup filters. Built-in types stay; remove custom ones you don&apos;t need.
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+          <Input
+            placeholder="New category (e.g. Souvenirs)"
+            value={newCategoryLabel}
+            onChange={(e) => setNewCategoryLabel(e.target.value)}
+            className="h-11 rounded-xl flex-1"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault()
+                handleAddCategory()
+              }
+            }}
+          />
+          <Button
+            type="button"
+            variant="secondary"
+            className="h-11 rounded-xl font-semibold shrink-0"
+            disabled={!newCategoryLabel.trim()}
+            onClick={handleAddCategory}
+          >
+            <Plus className="size-4 mr-2" />
+            Add category
+          </Button>
+        </div>
+        <div className="flex flex-col gap-2">
+          {categories.map((cat) => {
+            const isBuiltin = (BUILTIN_CATEGORY_IDS as readonly string[]).includes(cat.id)
+            return (
+              <motion.div
+                key={cat.id}
+                layout
+                className="flex items-center gap-3 p-3 rounded-2xl bg-card ring-1 ring-border/50"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">{cat.label}</p>
+                  <p className="text-[11px] text-muted-foreground font-mono truncate">{cat.id}</p>
+                </div>
+                {isBuiltin ? (
+                  <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold whitespace-nowrap">
+                    Built-in
+                  </span>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="size-9 shrink-0 rounded-xl text-destructive hover:text-destructive hover:bg-destructive/10"
+                    onClick={() => removeCategory(cat.id)}
+                    aria-label={`Remove category ${cat.label}`}
+                  >
+                    <Trash2 className="size-4" />
+                  </Button>
+                )}
+              </motion.div>
+            )
+          })}
+        </div>
+      </section>
+
       {/* Stores Management */}
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
@@ -201,8 +290,8 @@ export function SettingsView() {
               />
               <div className="grid grid-cols-2 gap-2">
                 <Input
-                  placeholder="Area (Shibuya...)"
-                  value={newStoreArea}
+                placeholder="Area (optional)"
+                value={newStoreArea}
                   onChange={(e) => setNewStoreArea(e.target.value)}
                   className="h-11 rounded-xl"
                 />
@@ -222,7 +311,7 @@ export function SettingsView() {
               <Button
                 className="h-11 rounded-xl font-semibold"
                 onClick={handleAddStore}
-                disabled={!newStoreName.trim() || !newStoreArea.trim()}
+                disabled={!newStoreName.trim()}
               >
                 <Plus className="size-4 mr-2" />
                 Add Store

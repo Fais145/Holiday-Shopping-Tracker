@@ -6,39 +6,88 @@ import {
   Check,
   Clock,
   Gift,
+  Minus,
+  Plus,
   Package,
   PackageCheck,
   ShoppingBag,
   Sparkles,
   X,
 } from "lucide-react"
+import { SmartStoreLink } from "@/components/smart-store-link"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
-  getCategoryConfig,
-  getPriorityConfig,
-  useAppStore,
+  getCategoryPresentation,
+  getCurrentStoreStatus,
+  getItemRouteStoreIds,
   getStoreById,
+  isQuestComplete,
+  useAppStore,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function BoughtView() {
-  const { items, stores, togglePacked, resetStatus, tryNextStore } = useAppStore()
+  const {
+    items,
+    stores,
+    togglePacked,
+    decrementOneBought,
+    incrementExtraBought,
+    undoSoldOutOrNotFoundAt,
+    resumeDeferOrSkipAt,
+  } = useAppStore()
+  const categoriesCatalog = useAppStore((s) => s.categories)
 
-  const boughtItems = items.filter((i) => i.status === "bought")
-  const soldOutItems = items.filter((i) => i.status === "sold-out")
-  const skippedItems = items.filter((i) => i.status === "skipped")
+  const recipientGroupKey = (item: { forWho: string }) =>
+    item.forWho.trim() || "Recipient not set"
+
+  const categoriesSummary = (item: (typeof items)[number]) =>
+    item.categoryIds.length === 0
+      ? "No category"
+      : item.categoryIds
+          .map((id) => getCategoryPresentation(id, categoriesCatalog).label)
+          .join(" · ")
+
+  const primaryCategoryBadge = (item: (typeof items)[number]) => {
+    const first = item.categoryIds[0]
+    if (!first) {
+      return { label: "—", colorClass: "bg-muted text-muted-foreground text-xs shrink-0" }
+    }
+    const c = getCategoryPresentation(first, categoriesCatalog)
+    return {
+      label: item.categoryIds.length > 1 ? `${c.label} +${item.categoryIds.length - 1}` : c.label,
+      colorClass: cn(c.color, "text-xs shrink-0"),
+    }
+  }
+
+  /** Items that have any quantity purchased (shows in haul for packing). */
+  const haulLineItems = items.filter((i) => i.quantityBought > 0)
+  const soldOutItems = items.filter(
+    (i) =>
+      !isQuestComplete(i) &&
+      !!i.currentStoreId &&
+      (getCurrentStoreStatus(i) === "sold-out" || getCurrentStoreStatus(i) === "not-found")
+  )
+
+  const deferredItems = items.filter(
+    (i) =>
+      !isQuestComplete(i) &&
+      !!i.currentStoreId &&
+      (getCurrentStoreStatus(i) === "check-later" || getCurrentStoreStatus(i) === "skip")
+  )
 
   // Calculate stats
-  const totalQuantityBought = boughtItems.reduce((acc, item) => acc + item.quantityBought, 0)
-  const packedCount = boughtItems.filter((i) => i.isPacked).length
-  const packProgress = boughtItems.length > 0 ? Math.round((packedCount / boughtItems.length) * 100) : 0
+  const totalQuantityBought = haulLineItems.reduce((acc, item) => acc + item.quantityBought, 0)
+  const packedCount = haulLineItems.filter((i) => i.isPacked).length
+  const packProgress =
+    haulLineItems.length > 0 ? Math.round((packedCount / haulLineItems.length) * 100) : 0
 
-  // Group by forWho for packing
-  const byRecipient = boughtItems.reduce<Record<string, typeof boughtItems>>((acc, item) => {
-    if (!acc[item.forWho]) acc[item.forWho] = []
-    acc[item.forWho].push(item)
+  const byRecipient = haulLineItems.reduce<Record<string, typeof haulLineItems>>((acc, item) => {
+    const key = recipientGroupKey(item)
+    if (!acc[key]) acc[key] = []
+    acc[key].push(item)
     return acc
   }, {})
 
@@ -59,8 +108,8 @@ export function BoughtView() {
         <div className="relative">
           <p className="text-sm font-medium opacity-90 mb-1">Your Haul</p>
           <h1 className="text-2xl font-bold mb-4">
-            {boughtItems.length > 0
-              ? `${boughtItems.length} treasures found!`
+            {haulLineItems.length > 0
+              ? `${haulLineItems.length} treasures found!`
               : "Start your quest!"}
           </h1>
           
@@ -75,7 +124,7 @@ export function BoughtView() {
             <div className="flex items-center gap-3 bg-white/10 rounded-xl p-3">
               <PackageCheck className="size-6" />
               <div>
-                <p className="text-xl font-bold tabular-nums">{packedCount}/{boughtItems.length}</p>
+                <p className="text-xl font-bold tabular-nums">{packedCount}/{haulLineItems.length}</p>
                 <p className="text-xs opacity-80">packed</p>
               </div>
             </div>
@@ -84,7 +133,7 @@ export function BoughtView() {
       </motion.div>
 
       {/* Packing Progress */}
-      {boughtItems.length > 0 && (
+      {haulLineItems.length > 0 && (
         <div className="flex flex-col gap-2 p-4 rounded-2xl bg-card ring-1 ring-border/50">
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium flex items-center gap-2">
@@ -118,7 +167,11 @@ export function BoughtView() {
               <div className="flex items-center gap-2 mb-2">
                 <Gift className="size-4 text-muted-foreground" />
                 <h3 className="font-semibold text-sm text-muted-foreground">
-                  For {recipient}
+                  {recipient === "Recipient not set" ? (
+                    <span>No recipient set</span>
+                  ) : (
+                    <>For {recipient}</>
+                  )}
                 </h3>
                 <Badge variant="outline" className="text-xs tabular-nums">
                   {byRecipient[recipient].length} items
@@ -150,16 +203,6 @@ export function BoughtView() {
                       {item.isPacked && <Check className="size-4" />}
                     </div>
                     
-                    {/* Priority Badge */}
-                    <div
-                      className={cn(
-                        "size-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0",
-                        getPriorityConfig(item.priority).color
-                      )}
-                    >
-                      {item.priority}
-                    </div>
-                    
                     {/* Item Info */}
                     <div className="flex-1 min-w-0">
                       <p className={cn(
@@ -168,18 +211,58 @@ export function BoughtView() {
                       )}>
                         {item.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
-                        {item.quantityBought}x · {getCategoryConfig(item.category).label}
+                      <p className="text-xs text-muted-foreground tabular-nums">
+                        <span className="font-medium text-foreground">
+                          {item.quantityBought}×
+                        </span>
+                        {" · "}goal {item.quantity}
+                        {item.quantityBought > item.quantity ? (
+                          <span className="text-primary font-semibold ml-1">
+                            (+{item.quantityBought - item.quantity})
+                          </span>
+                        ) : null}
+                        {" · "}
+                        {categoriesSummary(item)}
                       </p>
                     </div>
-                    
-                    {/* Category Badge */}
-                    <Badge
-                      variant="secondary"
-                      className={cn(getCategoryConfig(item.category).color, "text-xs shrink-0")}
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="size-10 shrink-0 rounded-xl border-muted-foreground/25"
+                      aria-label={`Remove one bought from ${item.name}`}
+                      title="Remove one bought"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        decrementOneBought(item.id)
+                      }}
                     >
-                      {getCategoryConfig(item.category).label}
-                    </Badge>
+                      <Minus className="size-5" aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="size-10 shrink-0 rounded-xl border-primary/35 text-primary hover:bg-primary/10"
+                      aria-label={`Add one bought for ${item.name} (beyond quest goal)`}
+                      title="Add one more (beyond goal)"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        incrementExtraBought(item.id)
+                      }}
+                    >
+                      <Plus className="size-5" aria-hidden />
+                    </Button>
+                    
+                    {(() => {
+                      const b = primaryCategoryBadge(item)
+                      return (
+                        <Badge variant="secondary" className={b.colorClass}>
+                          {b.label}
+                        </Badge>
+                      )
+                    })()}
                   </motion.div>
                 ))}
               </div>
@@ -201,9 +284,17 @@ export function BoughtView() {
           
           <div className="flex flex-col gap-3">
             {soldOutItems.map((item) => {
-              const backupStores = item.backupStoreIds
+              const alternateIds =
+                item.currentStoreId != null
+                  ? getItemRouteStoreIds(item).filter((id) => id !== item.currentStoreId)
+                  : getItemRouteStoreIds(item)
+              const backupStores = alternateIds
                 .map((id) => getStoreById(stores, id))
                 .filter(Boolean)
+              const soldIcon =
+                item.categoryIds[0] != null
+                  ? getCategoryPresentation(item.categoryIds[0], categoriesCatalog)
+                  : { color: "bg-muted text-muted-foreground" }
 
               return (
                 <motion.div
@@ -215,24 +306,31 @@ export function BoughtView() {
                   <div className="flex items-start gap-3">
                     <div
                       className={cn(
-                        "size-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0",
-                        getPriorityConfig(item.priority).color
+                        "flex items-center justify-center size-8 rounded-lg shrink-0",
+                        soldIcon.color
                       )}
+                      aria-hidden
                     >
-                      {item.priority}
+                      <ShoppingBag className="size-4 opacity-90" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold">{item.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        For {item.forWho} · {item.quantity}x needed
+                        {item.forWho.trim()
+                          ? `For ${item.forWho.trim()} · `
+                          : null}
+                        {item.quantity}x needed
                       </p>
                     </div>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => resetStatus(item.id)}
+                      onClick={() =>
+                        item.currentStoreId &&
+                        undoSoldOutOrNotFoundAt(item.id, item.currentStoreId)
+                      }
                     >
-                      Reset
+                      Undo
                     </Button>
                   </div>
                   
@@ -243,17 +341,20 @@ export function BoughtView() {
                         Try these stores instead:
                       </p>
                       <div className="flex flex-wrap gap-2">
-                        {backupStores.map((store) => store && (
-                          <Button
-                            key={store.id}
-                            variant="secondary"
-                            size="sm"
-                            className="h-8 text-xs rounded-lg"
-                            onClick={() => tryNextStore(item.id)}
-                          >
-                            {store.name}
-                          </Button>
-                        ))}
+                        {backupStores.map(
+                          (store) =>
+                            store && (
+                              <Button
+                                key={store.id}
+                                variant="secondary"
+                                size="sm"
+                                className="h-8 text-xs rounded-lg"
+                                asChild
+                              >
+                                <SmartStoreLink storeId={store.id}>{store.name}</SmartStoreLink>
+                              </Button>
+                            )
+                        )}
                       </div>
                     </div>
                   )}
@@ -270,19 +371,24 @@ export function BoughtView() {
         </section>
       )}
 
-      {/* Skipped Items */}
-      {skippedItems.length > 0 && (
+      {/* Check later / Skip */}
+      {deferredItems.length > 0 && (
         <section>
           <div className="flex items-center gap-2 mb-3">
             <Clock className="size-5 text-muted-foreground" />
             <h2 className="font-semibold text-muted-foreground">Saved for Later</h2>
             <Badge variant="outline" className="text-xs tabular-nums">
-              {skippedItems.length}
+              {deferredItems.length}
             </Badge>
           </div>
           
           <div className="flex flex-col gap-2">
-            {skippedItems.map((item) => (
+            {deferredItems.map((item) => {
+              const defIcon =
+                item.categoryIds[0] != null
+                  ? getCategoryPresentation(item.categoryIds[0], categoriesCatalog)
+                  : { color: "bg-muted text-muted-foreground" }
+              return (
               <motion.div
                 key={item.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -291,36 +397,41 @@ export function BoughtView() {
               >
                 <div
                   className={cn(
-                    "size-7 rounded-lg flex items-center justify-center text-[10px] font-bold shrink-0 opacity-60",
-                    getPriorityConfig(item.priority).color
+                    "flex items-center justify-center size-7 rounded-lg shrink-0 opacity-85",
+                    defIcon.color
                   )}
+                  aria-hidden
                 >
-                  {item.priority}
+                  <ShoppingBag className="size-3.5" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-medium text-sm text-muted-foreground truncate">
                     {item.name}
                   </p>
                   <p className="text-xs text-muted-foreground/70">
-                    For {item.forWho}
+                    {item.forWho.trim() ? `For ${item.forWho.trim()} · ` : null}
+                    {getCurrentStoreStatus(item) === "skip" ? "Skip" : "Check later"}
                   </p>
                 </div>
                 <Button
                   variant="outline"
                   size="sm"
                   className="h-7 text-xs"
-                  onClick={() => resetStatus(item.id)}
+                  onClick={() =>
+                    item.currentStoreId && resumeDeferOrSkipAt(item.id, item.currentStoreId)
+                  }
                 >
                   Resume
                 </Button>
               </motion.div>
-            ))}
+            )
+            })}
           </div>
         </section>
       )}
 
       {/* Empty State */}
-      {boughtItems.length === 0 && soldOutItems.length === 0 && skippedItems.length === 0 && (
+      {haulLineItems.length === 0 && soldOutItems.length === 0 && deferredItems.length === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}

@@ -1,20 +1,26 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { ChevronDown, MapPin, Package, Sparkles, Star, Target, Trophy } from "lucide-react"
+import { ChevronDown, MapPin, Package, Sparkles, Trophy } from "lucide-react"
 import { useState } from "react"
 import { ItemCard } from "@/components/item-card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { getStoreById, getPriorityConfig, priorityConfig, useAppStore } from "@/lib/store"
+import {
+  compareItemsForStoreShelf,
+  getStoreById,
+  isQuestComplete,
+  showsOnTodayView,
+  useAppStore,
+} from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function TodayView() {
   const { items, stores } = useAppStore()
   const [expandedAreas, setExpandedAreas] = useState<string[]>([])
 
-  // Get items that are still being hunted
-  const huntingItems = items.filter((item) => item.status === "hunting")
+  // Active quest items at the primary store (not deferred / blocked).
+  const huntingItems = items.filter((item) => showsOnTodayView(item))
   
   // Group by Area > Store
   const itemsByArea = huntingItems.reduce<Record<string, Record<string, typeof huntingItems>>>((acc, item) => {
@@ -31,12 +37,9 @@ export function TodayView() {
 
   // Stats
   const totalItems = items.length
-  const boughtItems = items.filter((i) => i.status === "bought").length
+  const boughtItems = items.filter((i) => isQuestComplete(i)).length
   const progressPercent = totalItems > 0 ? Math.round((boughtItems / totalItems) * 100) : 0
   
-  const sPriorityRemaining = huntingItems.filter((i) => i.priority === "S").length
-  const aPriorityRemaining = huntingItems.filter((i) => i.priority === "A").length
-
   const toggleArea = (area: string) => {
     setExpandedAreas((prev) =>
       prev.includes(area) ? prev.filter((a) => a !== area) : [...prev, area]
@@ -83,39 +86,9 @@ export function TodayView() {
               <Trophy className="size-4" />
               <span className="text-sm font-medium">{boughtItems}/{totalItems} found</span>
             </div>
-            {sPriorityRemaining > 0 && (
-              <div className="flex items-center gap-1.5">
-                <Star className="size-4 fill-current" />
-                <span className="text-sm font-medium">{sPriorityRemaining} must-haves left</span>
-              </div>
-            )}
           </div>
         </div>
       </motion.div>
-
-      {/* Priority Summary Badges */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-        {(["S", "A", "B", "C"] as const).map((p) => {
-          const count = huntingItems.filter((i) => i.priority === p).length
-          if (count === 0) return null
-          return (
-            <motion.div
-              key={p}
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className={cn(
-                "flex items-center gap-2 px-3 py-2 rounded-xl shrink-0",
-                priorityConfig[p].bgColor
-              )}
-            >
-              <div className={cn("size-6 rounded-lg flex items-center justify-center text-xs font-bold", priorityConfig[p].color)}>
-                {p}
-              </div>
-              <span className="text-sm font-medium">{count} items</span>
-            </motion.div>
-          )
-        })}
-      </div>
 
       {/* Areas with Stores */}
       {areas.map((area, areaIndex) => {
@@ -160,10 +133,9 @@ export function TodayView() {
               >
                 {storeIds.map((storeId) => {
                   const store = getStoreById(stores, storeId)
-                  const storeItems = storesInArea[storeId].sort((a, b) => {
-                    const order = { S: 0, A: 1, B: 2, C: 3 }
-                    return order[a.priority] - order[b.priority]
-                  })
+                  const storeItems = storesInArea[storeId].sort((a, b) =>
+                    compareItemsForStoreShelf(a, b, storeId)
+                  )
 
                   return (
                     <div key={storeId} className="pl-4">
@@ -181,7 +153,13 @@ export function TodayView() {
                       </div>
                       <div className="flex flex-col gap-3">
                         {storeItems.map((item) => (
-                          <ItemCard key={item.id} item={item} stores={stores} />
+                          <ItemCard
+                            key={item.id}
+                            item={item}
+                            stores={stores}
+                            shoppingStoreId={storeId}
+                            showBackupStores
+                          />
                         ))}
                       </div>
                     </div>
