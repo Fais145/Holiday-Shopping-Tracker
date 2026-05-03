@@ -9,20 +9,20 @@ import { Textarea } from "@/components/ui/textarea"
 import {
   type Category,
   type Priority,
-  categoryColors,
+  categoryConfig,
   priorityConfig,
   useAppStore,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 const categories: Category[] = ["fashion", "food", "merch", "beauty", "home", "misc"]
-const priorities: Priority[] = ["must-have", "want", "if-time"]
+const priorities: Priority[] = ["S", "A", "B", "C"]
 
 export function AddItemView() {
   const { stores, addItem, setActiveTab } = useAppStore()
   const [name, setName] = useState("")
   const [forWho, setForWho] = useState("")
-  const [priority, setPriority] = useState<Priority>("want")
+  const [priority, setPriority] = useState<Priority>("B")
   const [category, setCategory] = useState<Category>("misc")
   const [quantity, setQuantity] = useState(1)
   const [currentStoreId, setCurrentStoreId] = useState<string | null>(null)
@@ -151,7 +151,7 @@ export function AddItemView() {
               className={cn(
                 "px-4 py-2 rounded-xl text-sm font-medium capitalize transition-all",
                 category === cat
-                  ? categoryColors[cat]
+                  ? categoryConfig[cat].color
                   : "bg-muted text-muted-foreground"
               )}
             >

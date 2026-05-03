@@ -1,7 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
-export type Priority = "must-have" | "want" | "if-time"
+export type Priority = "S" | "A" | "B" | "C"
 export type Status = "hunting" | "found" | "bought" | "sold-out" | "skipped"
 export type Category = "fashion" | "food" | "merch" | "beauty" | "home" | "misc"
 
@@ -11,6 +11,7 @@ export interface Store {
   area: string
   address?: string
   notes?: string
+  hours?: string
 }
 
 export interface Item {
@@ -26,6 +27,7 @@ export interface Item {
   status: Status
   notes?: string
   price?: string
+  isPacked: boolean
   createdAt: string
   updatedAt: string
 }
@@ -36,13 +38,16 @@ interface AppState {
   activeTab: string
   
   // Item actions
-  addItem: (item: Omit<Item, "id" | "createdAt" | "updatedAt">) => void
+  addItem: (item: Omit<Item, "id" | "createdAt" | "updatedAt" | "isPacked">) => void
   updateItem: (id: string, updates: Partial<Item>) => void
   deleteItem: (id: string) => void
   markBought: (id: string, quantity?: number) => void
   markSoldOut: (id: string) => void
   markSkipped: (id: string) => void
+  markNotFound: (id: string) => void
   resetStatus: (id: string) => void
+  togglePacked: (id: string) => void
+  tryNextStore: (id: string) => void
   
   // Store actions
   addStore: (store: Omit<Store, "id">) => void
@@ -58,31 +63,35 @@ interface AppState {
 }
 
 const defaultStores: Store[] = [
-  { id: "1", name: "Don Quijote Shibuya", area: "Shibuya", notes: "Open 24hrs" },
-  { id: "2", name: "Tokyu Hands Shibuya", area: "Shibuya", notes: "Great for stationery" },
-  { id: "3", name: "Onitsuka Tiger Harajuku", area: "Harajuku", notes: "Main flagship store" },
-  { id: "4", name: "Kiddy Land Harajuku", area: "Harajuku", notes: "Character goods" },
-  { id: "5", name: "Tokyo Banana Station", area: "Tokyo Station", notes: "Inside station" },
-  { id: "6", name: "Animate Ikebukuro", area: "Ikebukuro", notes: "Largest anime store" },
-  { id: "7", name: "Yodobashi Camera Akiba", area: "Akihabara", notes: "Electronics + more" },
-  { id: "8", name: "LOFT Shibuya", area: "Shibuya", notes: "Lifestyle goods" },
-  { id: "9", name: "Muji Ginza", area: "Ginza", notes: "Flagship - biggest selection" },
-  { id: "10", name: "Daiso Harajuku", area: "Harajuku", notes: "100 yen shop" },
+  { id: "1", name: "Don Quijote Shibuya", area: "Shibuya", notes: "Open 24hrs", hours: "24 hours" },
+  { id: "2", name: "Tokyu Hands Shibuya", area: "Shibuya", notes: "Best for stationery & crafts", hours: "10:00-21:00" },
+  { id: "3", name: "Onitsuka Tiger Omotesando", area: "Harajuku", notes: "Main flagship store", hours: "11:00-20:00" },
+  { id: "4", name: "Kiddy Land Harajuku", area: "Harajuku", notes: "Character goods paradise", hours: "11:00-21:00" },
+  { id: "5", name: "Tokyo Banana Tokyo Station", area: "Tokyo Station", notes: "Inside Yaesu exit", hours: "8:00-21:30" },
+  { id: "6", name: "Animate Ikebukuro Main", area: "Ikebukuro", notes: "9 floors of anime!", hours: "10:00-21:00" },
+  { id: "7", name: "Yodobashi Camera Akiba", area: "Akihabara", notes: "Electronics + kitchen goods", hours: "9:30-22:00" },
+  { id: "8", name: "LOFT Shibuya", area: "Shibuya", notes: "Lifestyle & stationery", hours: "10:00-21:00" },
+  { id: "9", name: "Muji Ginza Flagship", area: "Ginza", notes: "Huge selection + hotel", hours: "10:00-21:00" },
+  { id: "10", name: "Daiso Harajuku", area: "Harajuku", notes: "100 yen treasures", hours: "10:00-21:00" },
+  { id: "11", name: "Mandarake Nakano", area: "Nakano", notes: "Rare collectibles", hours: "12:00-20:00" },
+  { id: "12", name: "Pokemon Center Mega Tokyo", area: "Ikebukuro", notes: "In Sunshine City", hours: "10:00-20:00" },
 ]
 
 const defaultItems: Item[] = [
   {
     id: "1",
-    name: "Nyota Blind Box",
+    name: "Nyota Blind Box (Cat Series)",
     forWho: "Me",
-    priority: "must-have",
+    priority: "S",
     category: "merch",
     quantity: 3,
     quantityBought: 0,
     currentStoreId: "4",
-    backupStoreIds: ["6"],
+    backupStoreIds: ["6", "11"],
     status: "hunting",
-    notes: "The cat series! Check for limited edition",
+    notes: "Check for the limited sakura edition!",
+    price: "~1,200 yen each",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -90,106 +99,165 @@ const defaultItems: Item[] = [
     id: "2",
     name: "Onitsuka Tiger Mexico 66",
     forWho: "Me",
-    priority: "must-have",
+    priority: "S",
     category: "fashion",
     quantity: 1,
     quantityBought: 0,
     currentStoreId: "3",
     backupStoreIds: [],
     status: "hunting",
-    notes: "Size 24.5cm - cream/red colorway",
+    notes: "Size 24.5cm - cream/red colorway only",
     price: "~15,000 yen",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "3",
-    name: "Spicy Furikake",
+    name: "Spicy Furikake (Shrimp)",
     forWho: "Mom",
-    priority: "want",
+    priority: "A",
     category: "food",
     quantity: 5,
     quantityBought: 2,
     currentStoreId: "1",
     backupStoreIds: ["9"],
     status: "hunting",
-    notes: "The one with shrimp bits",
+    notes: "The one with little shrimp bits she loves",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "4",
-    name: "Hojicha Powder",
-    forWho: "Gift",
-    priority: "want",
+    name: "Premium Hojicha Powder",
+    forWho: "Gifts",
+    priority: "A",
     category: "food",
     quantity: 2,
     quantityBought: 0,
     currentStoreId: "9",
     backupStoreIds: ["1"],
     status: "hunting",
-    notes: "Premium grade for lattes",
+    notes: "Latte-grade, not culinary",
+    price: "~800 yen",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "5",
-    name: "Zojirushi Thermos",
+    name: "Zojirushi Thermos 500ml",
     forWho: "Dad",
-    priority: "must-have",
+    priority: "S",
     category: "home",
     quantity: 1,
     quantityBought: 0,
     currentStoreId: "7",
-    backupStoreIds: ["1"],
+    backupStoreIds: ["1", "9"],
     status: "hunting",
-    notes: "500ml size, matte black",
+    notes: "Matte black only - he was specific!",
     price: "~4,000 yen",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "6",
-    name: "Cute Stickers",
+    name: "Aesthetic Journal Stickers",
     forWho: "Me",
-    priority: "if-time",
+    priority: "C",
     category: "misc",
     quantity: 10,
     quantityBought: 4,
     currentStoreId: "2",
     backupStoreIds: ["8", "10"],
     status: "hunting",
-    notes: "Aesthetic journal stickers",
+    notes: "Washi tape counts too!",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "7",
-    name: "Tokyo Banana",
+    name: "Tokyo Banana (Original)",
     forWho: "Office",
-    priority: "must-have",
+    priority: "S",
     category: "food",
     quantity: 2,
     quantityBought: 0,
     currentStoreId: "5",
     backupStoreIds: [],
     status: "hunting",
-    notes: "Get before leaving! 2 boxes for colleagues",
+    notes: "Get at station before leaving! 12-pack boxes",
+    price: "~1,200 yen/box",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
   {
     id: "8",
-    name: "Blue Lock Merch",
+    name: "Blue Lock - Isagi Merch",
     forWho: "Brother",
-    priority: "want",
+    priority: "A",
     category: "merch",
     quantity: 1,
     quantityBought: 0,
     currentStoreId: "6",
-    backupStoreIds: ["7"],
+    backupStoreIds: ["11"],
     status: "hunting",
-    notes: "Isagi keychain or acrylic stand",
+    notes: "Keychain or acrylic stand - whatever looks cool",
+    isPacked: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "9",
+    name: "JJK Gojo Figure",
+    forWho: "Me",
+    priority: "B",
+    category: "merch",
+    quantity: 1,
+    quantityBought: 0,
+    currentStoreId: "6",
+    backupStoreIds: ["11", "7"],
+    status: "hunting",
+    notes: "Check limited editions first!",
+    price: "~3,500 yen",
+    isPacked: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "10",
+    name: "Shiseido Lip Balm",
+    forWho: "Sister",
+    priority: "B",
+    category: "beauty",
+    quantity: 2,
+    quantityBought: 0,
+    currentStoreId: "1",
+    backupStoreIds: ["9"],
+    status: "hunting",
+    notes: "The rose one in the cute tin",
+    price: "~1,000 yen",
+    isPacked: false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  },
+  {
+    id: "11",
+    name: "Kit Kat Variety Pack",
+    forWho: "Gifts",
+    priority: "C",
+    category: "food",
+    quantity: 3,
+    quantityBought: 0,
+    currentStoreId: "1",
+    backupStoreIds: ["5"],
+    status: "hunting",
+    notes: "Matcha, strawberry, sake flavors",
+    isPacked: false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   },
@@ -209,6 +277,7 @@ export const useAppStore = create<AppState>()(
             {
               ...item,
               id: Date.now().toString(),
+              isPacked: false,
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString(),
             },
@@ -255,6 +324,15 @@ export const useAppStore = create<AppState>()(
           ),
         })),
 
+      markNotFound: (id) =>
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === id
+              ? { ...item, status: "sold-out" as Status, updatedAt: new Date().toISOString() }
+              : item
+          ),
+        })),
+
       markSkipped: (id) =>
         set((state) => ({
           items: state.items.map((item) =>
@@ -271,6 +349,31 @@ export const useAppStore = create<AppState>()(
               ? { ...item, status: "hunting" as Status, updatedAt: new Date().toISOString() }
               : item
           ),
+        })),
+
+      togglePacked: (id) =>
+        set((state) => ({
+          items: state.items.map((item) =>
+            item.id === id
+              ? { ...item, isPacked: !item.isPacked, updatedAt: new Date().toISOString() }
+              : item
+          ),
+        })),
+
+      tryNextStore: (id) =>
+        set((state) => ({
+          items: state.items.map((item) => {
+            if (item.id !== id) return item
+            if (item.backupStoreIds.length === 0) return item
+            const [nextStore, ...remaining] = item.backupStoreIds
+            return {
+              ...item,
+              currentStoreId: nextStore,
+              backupStoreIds: remaining,
+              status: "hunting" as Status,
+              updatedAt: new Date().toISOString(),
+            }
+          }),
         })),
 
       addStore: (store) =>
@@ -294,7 +397,7 @@ export const useAppStore = create<AppState>()(
 
       exportData: () => {
         const { items, stores } = get()
-        return JSON.stringify({ items, stores, exportedAt: new Date().toISOString() })
+        return JSON.stringify({ items, stores, exportedAt: new Date().toISOString() }, null, 2)
       },
 
       importData: (data) => {
@@ -343,26 +446,46 @@ export function getProgressPercentage(item: Item): number {
   return Math.round((item.quantityBought / item.quantity) * 100)
 }
 
-export const categoryColors: Record<Category, string> = {
-  fashion: "bg-pastel-pink text-foreground",
-  food: "bg-pastel-orange text-foreground",
-  merch: "bg-pastel-blue text-foreground",
-  beauty: "bg-pastel-purple text-foreground",
-  home: "bg-pastel-green text-foreground",
-  misc: "bg-pastel-yellow text-foreground",
+export const categoryConfig: Record<Category, { label: string; color: string; emoji: string }> = {
+  fashion: { label: "Fashion", color: "bg-pastel-pink text-foreground", emoji: "fashion" },
+  food: { label: "Food", color: "bg-pastel-orange text-foreground", emoji: "food" },
+  merch: { label: "Merch", color: "bg-pastel-blue text-foreground", emoji: "merch" },
+  beauty: { label: "Beauty", color: "bg-pastel-purple text-foreground", emoji: "beauty" },
+  home: { label: "Home", color: "bg-pastel-green text-foreground", emoji: "home" },
+  misc: { label: "Misc", color: "bg-pastel-yellow text-foreground", emoji: "misc" },
 }
 
-export const priorityConfig: Record<Priority, { label: string; color: string }> = {
-  "must-have": { label: "Must Have", color: "bg-primary text-primary-foreground" },
-  want: { label: "Want", color: "bg-secondary text-secondary-foreground" },
-  "if-time": { label: "If Time", color: "bg-muted text-muted-foreground" },
+export const priorityConfig: Record<Priority, { label: string; color: string; bgColor: string; description: string }> = {
+  S: { 
+    label: "S", 
+    color: "bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg shadow-amber-200/50", 
+    bgColor: "bg-amber-50",
+    description: "Cannot leave without!" 
+  },
+  A: { 
+    label: "A", 
+    color: "bg-gradient-to-br from-rose-400 to-pink-500 text-white shadow-md shadow-rose-200/50", 
+    bgColor: "bg-rose-50",
+    description: "Really want this" 
+  },
+  B: { 
+    label: "B", 
+    color: "bg-gradient-to-br from-sky-400 to-blue-500 text-white shadow-md shadow-sky-200/50", 
+    bgColor: "bg-sky-50",
+    description: "Would be nice" 
+  },
+  C: { 
+    label: "C", 
+    color: "bg-gradient-to-br from-slate-300 to-slate-400 text-white shadow-sm", 
+    bgColor: "bg-slate-50",
+    description: "If time permits" 
+  },
 }
 
 export const statusConfig: Record<Status, { label: string; icon: string }> = {
-  hunting: { label: "Hunting", icon: "search" },
+  hunting: { label: "Looking", icon: "search" },
   found: { label: "Found", icon: "check" },
-  bought: { label: "Bought", icon: "shopping-bag" },
+  bought: { label: "Got it!", icon: "shopping-bag" },
   "sold-out": { label: "Sold Out", icon: "x" },
   skipped: { label: "Later", icon: "clock" },
 }
-
