@@ -1,0 +1,21 @@
+{
+  "name": "YV Japan Buy Quest",
+  "short_name": "Japan Quest",
+  "description": "Your cute Japan shopping quest tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f0",
+  "theme_color": "#d97756",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
