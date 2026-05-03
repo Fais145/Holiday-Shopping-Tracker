@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import {
   AlertTriangle,
@@ -9,6 +10,7 @@ import {
   MapPin,
   Minus,
   Package,
+  Pencil,
   ShoppingBag,
   Sparkles,
   X,
@@ -34,6 +36,7 @@ import {
   useAppStore,
 } from "@/lib/store"
 import { SmartStoreLink } from "@/components/smart-store-link"
+import { editItemPagePath } from "@/lib/routes"
 import { cn } from "@/lib/utils"
 
 interface ItemCardProps {
@@ -164,6 +167,11 @@ export function ItemCard({
             {item.forWho.trim() ? ` · ${item.forWho.trim()}` : ""}
           </p>
         </div>
+        <Button variant="ghost" size="icon" className="size-8 shrink-0 rounded-lg text-muted-foreground" asChild>
+          <Link href={editItemPagePath(item.id)} prefetch aria-label={`Edit ${item.name}`}>
+            <Pencil className="size-3.5" aria-hidden />
+          </Link>
+        </Button>
         {questComplete ? (
           <div className="flex items-center justify-center size-8 rounded-full bg-success/20 text-success">
             <Check className="size-4" />
@@ -221,9 +229,19 @@ export function ItemCard({
             ) : null}
           </div>
         </div>
-        <div className="flex flex-wrap gap-1 justify-end max-w-[11rem]">
+        <div className="flex flex-wrap items-start justify-end gap-1.5 max-w-[min(100%,14rem)]">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-9 shrink-0 rounded-xl text-muted-foreground hover:text-foreground"
+            asChild
+          >
+            <Link href={editItemPagePath(item.id)} prefetch aria-label={`Edit ${item.name}`}>
+              <Pencil className="size-4" aria-hidden />
+            </Link>
+          </Button>
           {item.categoryIds.length === 0 ? (
-            <span className="text-[10px] text-muted-foreground font-medium self-center whitespace-nowrap">
+            <span className="text-[10px] text-muted-foreground font-medium self-center whitespace-nowrap pt-1">
               No category
             </span>
           ) : (

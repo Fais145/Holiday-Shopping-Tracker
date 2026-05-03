@@ -82,7 +82,7 @@ export function BottomNav() {
     >
       <div className="mx-auto flex h-18 max-w-lg items-end justify-center gap-5 px-3 pb-2 pt-1 sm:gap-6 sm:px-4">
         {leftNavItems.map((item) => renderNavLink(item))}
-        <div className="relative z-10 flex shrink-0 flex-col items-center gap-0.5 px-2 py-2">
+        <div className="relative z-10 flex shrink-0 flex-col items-center gap-0.5 px-2 py-2 translate-y-4 sm:translate-y-0">
           <Link href={centerNavItem.href} prefetch aria-label={centerNavItem.label}>
             <motion.span
               whileTap={{ scale: 0.9 }}

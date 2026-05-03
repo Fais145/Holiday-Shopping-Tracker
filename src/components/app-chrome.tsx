@@ -2,10 +2,13 @@
 
 import { AppHeader } from "@/components/app-header"
 import { BottomNav } from "@/components/bottom-nav"
+import { OfflineNotice } from "@/components/offline-notice"
+import { ServiceWorkerRegister } from "@/components/service-worker-register"
 
 export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative min-h-svh flex flex-col bg-background">
+      <ServiceWorkerRegister />
       {/* Cute strawberry tiling — faint so cards & text stay easy to read (hidden in dark mode). */}
       <div aria-hidden className="pointer-events-none fixed inset-0 z-0 dark:hidden">
         <div
@@ -18,6 +21,7 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
         />
       </div>
       <div className="relative z-[1] flex min-h-svh flex-col">
+        <OfflineNotice />
         <AppHeader />
         <main className="flex-1 px-4 py-4 max-w-lg mx-auto w-full min-h-0">{children}</main>
         <BottomNav />

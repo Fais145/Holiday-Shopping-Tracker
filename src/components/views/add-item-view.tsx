@@ -1,21 +1,40 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { motion } from "framer-motion"
-import { Check, MapPin, Minus, Plus, Sparkles, X } from "lucide-react"
+import { Check, MapPin, Minus, Plus, Sparkles, Trash2, X } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { RecipientPicker } from "@/components/recipient-picker"
 import { ShopPrioritySortableList } from "@/components/shop-priority-sortable-list"
 import { type Store, getCategoryPresentation, getStoreById, useAppStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function AddItemView() {
+  return <ItemEditorView />
+}
+
+export function EditItemView({ itemId }: { itemId: string }) {
+  return <ItemEditorView editItemId={itemId} />
+}
+
+function ItemEditorView({ editItemId }: { editItemId?: string }) {
   const router = useRouter()
-  const { addItem, stores, addStore, categories, addCategory } = useAppStore()
+  const items = useAppStore((s) => s.items)
+  const addItem = useAppStore((s) => s.addItem)
+  const updateItem = useAppStore((s) => s.updateItem)
+  const stores = useAppStore((s) => s.stores)
+  const addStore = useAppStore((s) => s.addStore)
+  const categories = useAppStore((s) => s.categories)
+  const addCategory = useAppStore((s) => s.addCategory)
+  const deleteItem = useAppStore((s) => s.deleteItem)
+  const isEdit = !!editItemId
+  const editTarget = editItemId ? items.find((i) => i.id === editItemId) : undefined
   const [name, setName] = useState("")
   const [storeSearch, setStoreSearch] = useState("")
   const [storeArea, setStoreArea] = useState("")
@@ -24,7 +43,6 @@ export function AddItemView() {
   const [showShopPriority, setShowShopPriority] = useState(false)
   const [storeSuggestionsOpen, setStoreSuggestionsOpen] = useState(false)
   const storeBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const prevResolvedStoreIdRef = useRef<string | null>(null)
   const [forWho, setForWho] = useState("")
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [newCategoryLabel, setNewCategoryLabel] = useState("")
@@ -32,6 +50,61 @@ export function AddItemView() {
   const [notes, setNotes] = useState("")
   const [price, setPrice] = useState("")
   const [showSuccess, setShowSuccess] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const initEditRef = useRef<string | null>(null)
+
+  const recipientSuggestions = useMemo(() => {
+    const seen = new Set<string>()
+    const list: string[] = []
+    for (const it of items) {
+      const w = it.forWho.trim()
+      if (!w) continue
+      const key = w.toLowerCase()
+      if (seen.has(key)) continue
+      seen.add(key)
+      list.push(w)
+    }
+    list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+    return list
+  }, [items])
+
+  useEffect(() => {
+    if (!editItemId) {
+      initEditRef.current = null
+      setShowDeleteConfirm(false)
+      return
+    }
+    if (!editTarget) return
+    if (initEditRef.current === editItemId) return
+    initEditRef.current = editItemId
+    setShowDeleteConfirm(false)
+    setName(editTarget.name)
+    setForWho(editTarget.forWho)
+    setSelectedCategoryIds([...editTarget.categoryIds])
+    setQuantity(editTarget.quantity)
+    setNotes(editTarget.notes ?? "")
+    setPrice(editTarget.price ?? "")
+    const route = [editTarget.currentStoreId, ...editTarget.backupStoreIds].filter(
+      (x): x is string => typeof x === "string" && x.trim() !== ""
+    )
+    setSelectedStoreIds(route)
+    setShowShopPriority(false)
+    setStoreSearch("")
+    setStoreArea("")
+    setStoreSuggestionsOpen(false)
+    setNewCategoryLabel("")
+  }, [editItemId, editTarget])
+
+  const pickStoreIdFromNameTrim = useCallback(
+    (nameTrim: string, selectedIdsSnapshot: readonly string[]): Store | undefined => {
+      const lower = nameTrim.toLowerCase()
+      const matches = stores.filter((s) => s.name.trim().toLowerCase() === lower)
+      if (matches.length === 0) return undefined
+      return matches.find((s) => !selectedIdsSnapshot.includes(s.id)) ?? matches[0]
+    },
+    [stores],
+  )
 
   const storeNameSuggestions = useMemo(() => {
     const selected = new Set(selectedStoreIds)
@@ -49,23 +122,8 @@ export function AddItemView() {
 
   /** Prefer a store not already on this item so autocomplete works for multiple shops with the same lookup. */
   const existingMatchingName = useMemo(() => {
-    const t = storeSearch.trim().toLowerCase()
-    if (!t) return null
-    const matches = stores.filter((s) => s.name.trim().toLowerCase() === t)
-    if (matches.length === 0) return null
-    const unselected = matches.find((s) => !selectedStoreIds.includes(s.id))
-    return unselected ?? matches[0]
-  }, [stores, storeSearch, selectedStoreIds])
-
-  const pickStoreIdFromNameTrim = (
-    nameTrim: string,
-    selectedIdsSnapshot: readonly string[],
-  ): Store | undefined => {
-    const lower = nameTrim.toLowerCase()
-    const matches = stores.filter((s) => s.name.trim().toLowerCase() === lower)
-    if (matches.length === 0) return undefined
-    return matches.find((s) => !selectedIdsSnapshot.includes(s.id)) ?? matches[0]
-  }
+    return pickStoreIdFromNameTrim(storeSearch.trim(), selectedStoreIds) ?? null
+  }, [pickStoreIdFromNameTrim, storeSearch, selectedStoreIds])
 
   useEffect(() => {
     return () => {
@@ -73,33 +131,20 @@ export function AddItemView() {
     }
   }, [])
 
-  useEffect(() => {
-    if (selectedStoreIds.length < 2) setShowShopPriority(false)
-  }, [selectedStoreIds.length])
-
-  /**
-   * When the name matches a saved shop (not yet duplicated on this draft list), mirror its area.
-   * When editing away from an exact saved name while typing something new, clear the mirrored area so the Area row is free again.
-   */
-  useEffect(() => {
-    const id = existingMatchingName?.id ?? null
-    if (id && !selectedStoreIds.includes(id)) {
-      setStoreArea(existingMatchingName!.area)
-      prevResolvedStoreIdRef.current = id
-    } else if (existingMatchingName && selectedStoreIds.includes(existingMatchingName.id)) {
-      setStoreArea(existingMatchingName.area)
-      prevResolvedStoreIdRef.current = null
-    } else {
-      const hadResolved = prevResolvedStoreIdRef.current !== null
-      if (hadResolved && storeSearch.trim() !== "") {
-        setStoreArea("")
-      }
-      if (storeSearch.trim() === "") {
-        setStoreArea("")
-      }
-      prevResolvedStoreIdRef.current = null
+  const handleStoreSearchChange = (v: string) => {
+    const prevExact = pickStoreIdFromNameTrim(storeSearch.trim(), selectedStoreIds)
+    setStoreSearch(v)
+    const t = v.trim()
+    setStoreSuggestionsOpen(true)
+    if (!t) {
+      setStoreArea("")
+      return
     }
-  }, [existingMatchingName, storeSearch, selectedStoreIds])
+    const nextExact = pickStoreIdFromNameTrim(t, selectedStoreIds)
+    if (prevExact != null && nextExact == null) {
+      setStoreArea("")
+    }
+  }
 
   const resolvedId = existingMatchingName?.id ?? null
   const isAlreadyListed = resolvedId != null && selectedStoreIds.includes(resolvedId)
@@ -137,7 +182,6 @@ export function AddItemView() {
     appendStoreId(id)
     setStoreSearch("")
     setStoreArea("")
-    prevResolvedStoreIdRef.current = null
     setStoreSuggestionsOpen(false)
   }
 
@@ -156,7 +200,7 @@ export function AddItemView() {
   const hasMinimumShops =
     selectedStoreIds.length > 0 || !!storeSearch.trim()
 
-  const handleSubmit = () => {
+  const resolveRouteFromForm = (): { currentStoreId: string; backupStoreIds: string[] } | null => {
     const mergedIds = [...selectedStoreIds]
     const trailingName = storeSearch.trim()
     const trailingArea = storeArea.trim()
@@ -171,9 +215,62 @@ export function AddItemView() {
     }
     const uniqueOrdered = [...new Set(mergedIds)]
     const currentStoreId = uniqueOrdered[0] ?? null
-    const backupStoreIds = uniqueOrdered.slice(1)
-    if (!name.trim() || !currentStoreId) return
+    if (!currentStoreId) return null
+    return { currentStoreId, backupStoreIds: uniqueOrdered.slice(1) }
+  }
 
+  const handleConfirmDelete = () => {
+    if (!editTarget) return
+    deleteItem(editTarget.id)
+    setShowDeleteConfirm(false)
+    router.push("/search")
+  }
+
+  const handleSubmit = () => {
+    const route = resolveRouteFromForm()
+    if (!name.trim() || !route) return
+
+    if (isEdit && editTarget) {
+      const { currentStoreId, backupStoreIds } = route
+      const newSet = new Set<string>([currentStoreId, ...backupStoreIds])
+      const prevRouteIds = [editTarget.currentStoreId, ...editTarget.backupStoreIds].filter(
+        (x): x is string => typeof x === "string" && x.trim() !== ""
+      )
+      let lost = 0
+      for (const rid of prevRouteIds) {
+        if (!newSet.has(rid)) lost += editTarget.boughtAtStore[rid] ?? 0
+      }
+      const nextBought: Record<string, number> = {}
+      for (const [k, v] of Object.entries(editTarget.boughtAtStore)) {
+        if (!newSet.has(k)) continue
+        if (typeof v === "number" && v > 0) nextBought[k] = Math.floor(v)
+      }
+      const nextSs = { ...editTarget.storeStatuses }
+      for (const k of Object.keys(nextSs)) {
+        if (!newSet.has(k)) delete nextSs[k]
+      }
+      let quantityBought = Math.max(0, editTarget.quantityBought - lost)
+      const summed = Object.values(nextBought).reduce((a, b) => a + b, 0)
+      quantityBought = Math.max(quantityBought, summed)
+
+      updateItem(editTarget.id, {
+        name: name.trim(),
+        forWho: forWho.trim(),
+        categoryIds: [...new Set(selectedCategoryIds)],
+        quantity,
+        currentStoreId,
+        backupStoreIds,
+        boughtAtStore: nextBought,
+        storeStatuses: nextSs,
+        quantityBought,
+        notes: notes.trim() || undefined,
+        price: price.trim() || undefined,
+      })
+      router.push("/stores")
+      return
+    }
+
+    const { currentStoreId, backupStoreIds } = route
     addItem({
       name: name.trim(),
       forWho: forWho.trim(),
@@ -188,11 +285,9 @@ export function AddItemView() {
       price: price.trim() || undefined,
     })
 
-    // Show success state
     setShowSuccess(true)
     setTimeout(() => {
       setShowSuccess(false)
-      // Reset form
       setName("")
       setStoreSearch("")
       setStoreArea("")
@@ -207,6 +302,25 @@ export function AddItemView() {
       setPrice("")
       router.push("/stores")
     }, 1200)
+  }
+
+  if (isEdit && editItemId && !editTarget) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex flex-col items-center justify-center gap-4 py-20 text-center px-4 pb-28"
+      >
+        <p className="text-muted-foreground text-sm max-w-xs">
+          This quest item isn&apos;t on your list anymore, or the link is wrong.
+        </p>
+        <Button asChild className="rounded-xl min-h-11">
+          <Link href="/search" prefetch>
+            Back to lookup
+          </Link>
+        </Button>
+      </motion.div>
+    )
   }
 
   if (showSuccess) {
@@ -242,8 +356,10 @@ export function AddItemView() {
           <Sparkles className="size-6 text-primary" />
         </div>
         <div>
-          <h1 className="text-xl font-bold">New Quest Item</h1>
-          <p className="text-sm text-muted-foreground">Add something to find</p>
+          <h1 className="text-xl font-bold">{isEdit ? "Edit Quest Item" : "New Quest Item"}</h1>
+          <p className="text-sm text-muted-foreground">
+            {isEdit ? "Update details — shopping progress stays in sync." : "Add something to find"}
+          </p>
         </div>
       </div>
 
@@ -359,10 +475,7 @@ export function AddItemView() {
                 aria-controls="add-item-store-suggestions"
                 role="combobox"
                 value={storeSearch}
-                onChange={(e) => {
-                  setStoreSearch(e.target.value)
-                  setStoreSuggestionsOpen(true)
-                }}
+                onChange={(e) => handleStoreSearchChange(e.target.value)}
                 onFocus={() => {
                   if (storeBlurTimer.current != null) clearTimeout(storeBlurTimer.current)
                   storeBlurTimer.current = null
@@ -397,8 +510,7 @@ export function AddItemView() {
                           e.preventDefault()
                         }}
                         onClick={() => {
-                          setStoreSearch(store.name)
-                          setStoreArea(store.area)
+                          handleStoreSearchChange(store.name)
                           setStoreSuggestionsOpen(false)
                         }}
                       >
@@ -422,7 +534,7 @@ export function AddItemView() {
               id="add-item-store-area"
               placeholder={existingMatchingName ? "From saved shop" : "e.g., Shibuya"}
               autoComplete="off"
-              value={storeArea}
+              value={existingMatchingName ? existingMatchingName.area : storeArea}
               onChange={(e) => setStoreArea(e.target.value)}
               disabled={!!existingMatchingName}
               readOnly={!!existingMatchingName}
@@ -454,18 +566,13 @@ export function AddItemView() {
         </div>
       </div>
 
-      {/* For Who */}
-      <div className="flex flex-col gap-2">
-        <label className="text-sm font-semibold">
-          Who&apos;s it for? <span className="text-muted-foreground font-normal">(optional)</span>
-        </label>
-        <Input
-          placeholder="Me, Mom, Brother..."
-          value={forWho}
-          onChange={(e) => setForWho(e.target.value)}
-          className="h-12 rounded-xl text-base"
-        />
-      </div>
+      <RecipientPicker
+        key={editItemId ?? "add"}
+        value={forWho}
+        onChange={setForWho}
+        suggestions={recipientSuggestions}
+        inputId={isEdit ? "edit-item-recipient" : "add-item-recipient"}
+      />
 
       {/* Categories */}
       <div className="flex flex-col gap-3">
@@ -589,9 +696,59 @@ export function AddItemView() {
           disabled={!name.trim() || !hasMinimumShops}
         >
           <Sparkles className="size-5 mr-2" />
-          Add to Quest
+          {isEdit ? "Save changes" : "Add to Quest"}
         </Button>
       </motion.div>
+
+      {isEdit && editTarget ? (
+        <div className="flex flex-col gap-3 border-t border-border/60 pt-4">
+          {!showDeleteConfirm ? (
+            <Button
+              type="button"
+              variant="outline"
+              className="h-12 rounded-xl font-semibold text-destructive border-destructive/35 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setShowDeleteConfirm(true)}
+            >
+              <Trash2 className="size-4 mr-2" aria-hidden />
+              Delete quest
+            </Button>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex flex-col gap-3 rounded-xl border border-destructive/25 bg-destructive/5 p-4"
+              role="alertdialog"
+              aria-labelledby="delete-quest-title"
+              aria-describedby="delete-quest-desc"
+            >
+              <p id="delete-quest-title" className="text-sm font-semibold text-foreground">
+                Delete this quest?
+              </p>
+              <p id="delete-quest-desc" className="text-sm text-muted-foreground leading-relaxed">
+                This removes the item and all hunt progress for it. You can&apos;t undo this.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-12 flex-1 rounded-xl font-semibold"
+                  onClick={() => setShowDeleteConfirm(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  className="h-12 flex-1 rounded-xl font-semibold"
+                  onClick={handleConfirmDelete}
+                >
+                  Delete
+                </Button>
+              </div>
+            </motion.div>
+          )}
+        </div>
+      ) : null}
     </motion.div>
   )
 }

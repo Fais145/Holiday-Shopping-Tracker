@@ -13,9 +13,6 @@ export type StoreOptionStatus =
 
 export type Category = "fashion" | "food" | "merch" | "beauty" | "home" | "misc"
 
-/** @deprecated Legacy item-level status from v0; migrated into `storeStatuses` on load. */
-type LegacyStatus = "hunting" | "found" | "bought" | "sold-out" | "skipped"
-
 export interface Store {
   id: string
   name: string
@@ -227,8 +224,8 @@ export function normalizeItem(raw: unknown): Item | null {
     ? (raw.backupStoreIds.filter((id) => typeof id === "string") as string[])
     : []
 
-  let storeStatuses = coerceStoreStatuses(raw.storeStatuses)
-  let boughtAtStore = coerceBoughtAtStore(raw.boughtAtStore)
+  const storeStatuses = coerceStoreStatuses(raw.storeStatuses)
+  const boughtAtStore = coerceBoughtAtStore(raw.boughtAtStore)
 
   const hasLegacyTopLevelStatus = "status" in raw && typeof raw.status === "string"
 
@@ -293,8 +290,6 @@ export function normalizeItem(raw: unknown): Item | null {
   const updatedAt =
     typeof raw.updatedAt === "string" ? raw.updatedAt : new Date().toISOString()
 
-  quantityBought = Math.min(quantity, quantityBought)
-
   return {
     id,
     name,
@@ -317,6 +312,30 @@ export function normalizeItem(raw: unknown): Item | null {
 export function normalizeItems(items: unknown): Item[] {
   if (!Array.isArray(items)) return []
   return items.map((row) => normalizeItem(row)).filter((x): x is Item => x !== null)
+}
+
+/** Rehydrated / imported stores only (never throws). Drops invalid rows; replaces duplicate IDs with later row. */
+function normalizeStoredStores(rows: unknown): Store[] {
+  if (!Array.isArray(rows)) return []
+  const byId = new Map<string, Store>()
+  for (const row of rows) {
+    if (!isRecord(row)) continue
+    const id = typeof row.id === "string" && row.id.trim() ? row.id.trim() : null
+    if (!id) continue
+    const nameRaw = typeof row.name === "string" ? row.name.trim() : ""
+    const name = nameRaw || "Untitled shop"
+    const areaRaw = typeof row.area === "string" ? row.area.trim() : ""
+    const area = areaRaw || "Unset"
+    byId.set(id, {
+      id,
+      name,
+      area,
+      address: typeof row.address === "string" ? row.address : undefined,
+      notes: typeof row.notes === "string" ? row.notes : undefined,
+      hours: typeof row.hours === "string" ? row.hours : undefined,
+    })
+  }
+  return [...byId.values()]
 }
 
 export function getStoreOptionStatus(item: Item, storeId: string): StoreOptionStatus {
@@ -564,7 +583,7 @@ function clearStoreProgress(item: Item, storeId: string): Item {
     ...item,
     storeStatuses,
     boughtAtStore,
-    quantityBought: Math.min(item.quantity, quantityBought),
+    quantityBought,
   }
 }
 
@@ -616,9 +635,12 @@ interface AppState {
 
   exportData: () => string
   importData: (data: string) => boolean
+  /** Replace list + shops with a small curated demo (Settings). */
+  loadDemoData: () => void
 }
 
-const defaultStores: Store[] = [
+/** Full sample shops — kept in code for demos & tests; not loaded on first launch. */
+export const ARCHIVE_SAMPLE_STORES: Store[] = [
   {
     id: "1",
     name: "Don Quijote Shibuya",
@@ -695,7 +717,8 @@ function baseItem(
   }
 }
 
-const defaultItems: Item[] = [
+/** Full sample quest list — kept in code for demos & tests; not loaded on first launch. */
+export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "1",
     name: "Nyota Blind Box (Cat Series)",
@@ -832,11 +855,34 @@ const defaultItems: Item[] = [
   }),
 ]
 
+const DEMO_SEED_STORE_IDS = new Set(["1", "2", "3", "4", "5", "6"])
+
+/** Six Tokyo-area shops bundled with “Load demo data”. */
+export const DEMO_SEED_STORES: Store[] = ARCHIVE_SAMPLE_STORES.filter((s) => DEMO_SEED_STORE_IDS.has(s.id))
+
+/**
+ * Five varied demo items (route, backups, partial progress, categories) using only `DEMO_SEED_STORES`.
+ * Safe to call on Settings → Load demo data.
+ */
+export function getDemoSeedDataset(): { stores: Store[]; items: Item[] } {
+  const allowed = DEMO_SEED_STORE_IDS
+  const rows = ARCHIVE_SAMPLE_ITEMS.slice(0, 5).map((it) => {
+    const currentStoreId =
+      it.currentStoreId && allowed.has(it.currentStoreId) ? it.currentStoreId : "1"
+    const backupStoreIds = it.backupStoreIds.filter((id) => allowed.has(id) && id !== currentStoreId)
+    return { ...it, currentStoreId, backupStoreIds }
+  })
+  return {
+    stores: DEMO_SEED_STORES,
+    items: normalizeItems(rows),
+  }
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
-      items: normalizeItems(defaultItems),
-      stores: defaultStores,
+      items: [],
+      stores: [],
       categories: defaultCategoryDefinitions(),
       activeTab: "stores",
 
@@ -917,7 +963,7 @@ export const useAppStore = create<AppState>()(
             if (item.id !== id) return item
             if (item.quantityBought <= 0) return item
 
-            let boughtAtStore = { ...item.boughtAtStore }
+            const boughtAtStore = { ...item.boughtAtStore }
             const prefer = options?.atStoreId
             const cid = item.currentStoreId
             let decrementedFrom: string | undefined
@@ -939,6 +985,12 @@ export const useAppStore = create<AppState>()(
                 if (boughtAtStore[k]! <= 0) delete boughtAtStore[k]
                 decrementedFrom = k
               }
+            }
+
+            const shelfHasStockAfter = Object.values(boughtAtStore).some((v) => (v ?? 0) > 0)
+            if (!decrementedFrom) {
+              if (shelfHasStockAfter) return item
+              if (item.quantityBought <= 0) return item
             }
 
             const quantityBought = Math.max(0, item.quantityBought - 1)
@@ -969,7 +1021,7 @@ export const useAppStore = create<AppState>()(
           items: state.items.map((item) => {
             if (item.id !== id) return item
             const bs = { ...item.boughtAtStore }
-            let sid =
+            const sid =
               item.currentStoreId ??
               [...Object.entries(bs)]
                 .filter(([, n]) => (n ?? 0) > 0)
@@ -1232,8 +1284,9 @@ export const useAppStore = create<AppState>()(
             Array.isArray(parsed.stores)
           ) {
             const items = normalizeItems(parsed.items)
+            const stores = normalizeStoredStores(parsed.stores)
             const categories = mergeCategoryCatalog(parsed.categories)
-            set({ items, stores: parsed.stores, categories })
+            set({ items, stores, categories })
             return true
           }
           return false
@@ -1241,16 +1294,23 @@ export const useAppStore = create<AppState>()(
           return false
         }
       },
+
+      loadDemoData: () => {
+        const { stores, items } = getDemoSeedDataset()
+        set({
+          stores,
+          items,
+          categories: defaultCategoryDefinitions(),
+        })
+      },
     }),
     {
       name: "yv-japan-buy-quest",
       onRehydrateStorage: () => (state) => {
-        if (state?.items) {
-          state.items = normalizeItems(state.items)
-        }
-        if (state) {
-          state.categories = mergeCategoryCatalog(state.categories)
-        }
+        if (!state) return
+        state.items = normalizeItems(state.items ?? [])
+        state.stores = normalizeStoredStores(state.stores ?? [])
+        state.categories = mergeCategoryCatalog(state.categories)
       },
     }
   )

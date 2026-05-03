@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import {
   ArrowRight,
@@ -99,38 +100,64 @@ export function BoughtView() {
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-success/90 to-success p-5 text-white shadow-xl shadow-success/20"
+        className="relative overflow-hidden rounded-3xl bg-linear-to-br from-primary via-primary to-chart-1 p-5 text-primary-foreground shadow-xl shadow-primary/25 ring-1 ring-primary-foreground/15"
       >
-        <div className="absolute top-0 right-0 opacity-10">
+        <div className="absolute top-0 right-0 text-primary-foreground opacity-[0.12]">
           <ShoppingBag className="size-32 -mt-8 -mr-8" />
         </div>
-        
+
         <div className="relative">
-          <p className="text-sm font-medium opacity-90 mb-1">Your Haul</p>
-          <h1 className="text-2xl font-bold mb-4">
+          <p className="text-sm font-medium text-primary-foreground/90 mb-1">Your Haul</p>
+          <h1 className="text-2xl font-bold mb-4 text-primary-foreground">
             {haulLineItems.length > 0
               ? `${haulLineItems.length} treasures found!`
               : "Start your quest!"}
           </h1>
-          
+
           <div className="grid grid-cols-2 gap-4">
-            <div className="flex items-center gap-3 bg-white/10 rounded-xl p-3">
-              <Package className="size-6" />
+            <div className="flex items-center gap-3 rounded-xl bg-primary-foreground/12 p-3 ring-1 ring-primary-foreground/10 backdrop-blur-[2px]">
+              <Package className="size-6 shrink-0" />
               <div>
                 <p className="text-xl font-bold tabular-nums">{totalQuantityBought}</p>
-                <p className="text-xs opacity-80">total items</p>
+                <p className="text-xs text-primary-foreground/80">total items</p>
               </div>
             </div>
-            <div className="flex items-center gap-3 bg-white/10 rounded-xl p-3">
-              <PackageCheck className="size-6" />
+            <div className="flex items-center gap-3 rounded-xl bg-primary-foreground/12 p-3 ring-1 ring-primary-foreground/10 backdrop-blur-[2px]">
+              <PackageCheck className="size-6 shrink-0" />
               <div>
                 <p className="text-xl font-bold tabular-nums">{packedCount}/{haulLineItems.length}</p>
-                <p className="text-xs opacity-80">packed</p>
+                <p className="text-xs text-primary-foreground/80">packed</p>
               </div>
             </div>
           </div>
         </div>
       </motion.div>
+
+      {items.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center gap-3 rounded-2xl bg-card p-6 text-center ring-1 ring-border/50"
+        >
+          <ShoppingBag className="size-10 text-muted-foreground/40 shrink-0" aria-hidden />
+          <p className="text-sm font-medium text-foreground max-w-sm leading-relaxed">
+            Add your first shopping quest or import a backup. Your haul and packing list will show up
+            here once you mark finds.
+          </p>
+          <div className="flex flex-col w-full max-w-xs gap-2 pt-1">
+            <Button asChild className="h-12 rounded-xl font-semibold">
+              <Link href="/add" prefetch>
+                Add quest item
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-12 rounded-xl font-semibold">
+              <Link href="/settings" prefetch>
+                Settings — import backup
+              </Link>
+            </Button>
+          </div>
+        </motion.div>
+      ) : null}
 
       {/* Packing Progress */}
       {haulLineItems.length > 0 && (

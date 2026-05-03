@@ -9,7 +9,7 @@ function stripTrailingSlash(p: string): string {
 }
 
 /** Go to actual browser history prev step; fall back when there is nowhere to go. */
-export function useAppBackNavigation(fallbackHref = "/stores") {
+export function useAppBackNavigation(fallbackHref = "/search") {
   const router = useRouter()
   const pathname = usePathname()
 

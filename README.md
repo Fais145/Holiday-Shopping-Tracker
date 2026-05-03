@@ -178,7 +178,7 @@ Must include:
 Must include:
 - Export JSON
 - Import JSON
-- Reset sample data
+- Load demo data (optional sample quest)
 - Clear all data with confirmation
 
 ## Categories

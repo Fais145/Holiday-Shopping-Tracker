@@ -4,7 +4,7 @@ import Link from "next/link"
 import { SmartStoreLink } from "@/components/smart-store-link"
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, ChevronRight, Clock, MapPin, Package, Sparkles, Store as StoreIcon } from "lucide-react"
+import { ChevronRight, Clock, MapPin, Package, Sparkles, Store as StoreIcon } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { HorizontalScrollStrip } from "@/components/horizontal-scroll-strip"
@@ -36,41 +36,75 @@ export function StoresView() {
 
   return (
     <div className="flex flex-col gap-5 pb-28">
-      <p className="text-center text-muted-foreground text-sm -mt-1">
-        Tap a store to open its list, or use{" "}
-        <ChevronRight className="inline size-3.5 align-middle text-primary" aria-hidden />{" "}
-        for a quick peek here.
-      </p>
-
-      <HorizontalScrollStrip>
-        <button
-          type="button"
-          onClick={() => setSelectedArea(null)}
-          className={cn(
-            "px-4 py-2 rounded-full text-sm font-medium shrink-0 transition-all min-h-11",
-            !selectedArea
-              ? "bg-primary text-primary-foreground shadow-md"
-              : "bg-secondary text-secondary-foreground"
-          )}
+      {items.length === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="flex flex-col items-center gap-3 rounded-2xl bg-card p-5 text-center ring-1 ring-border/50"
         >
-          All Areas
-        </button>
-        {areas.map((area) => (
+          <div className="flex items-center justify-center size-12 rounded-full bg-primary/10">
+            <Sparkles className="size-6 text-primary" aria-hidden />
+          </div>
+          <p className="text-sm font-medium text-foreground leading-relaxed max-w-sm">
+            Add your first shopping quest or import a backup.
+          </p>
+          {stores.length === 0 ? (
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-sm">
+              You&apos;ll pick shops when you add a quest item, or you can add them first under Settings.
+            </p>
+          ) : null}
+          <div className="flex flex-col w-full max-w-xs gap-2 pt-1">
+            <Button asChild className="h-12 rounded-xl font-semibold">
+              <Link href="/add" prefetch>
+                Add quest item
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-12 rounded-xl font-semibold">
+              <Link href="/settings" prefetch>
+                Settings — import backup
+              </Link>
+            </Button>
+          </div>
+        </motion.div>
+      ) : (
+        <p className="text-center text-muted-foreground text-sm -mt-1">
+          Tap a store to open its list, or use{" "}
+          <ChevronRight className="inline size-3.5 align-middle text-primary" aria-hidden />{" "}
+          for a quick peek here.
+        </p>
+      )}
+
+      {areas.length > 0 ? (
+        <HorizontalScrollStrip>
           <button
-            key={area}
             type="button"
-            onClick={() => setSelectedArea(selectedArea === area ? null : area)}
+            onClick={() => setSelectedArea(null)}
             className={cn(
               "px-4 py-2 rounded-full text-sm font-medium shrink-0 transition-all min-h-11",
-              selectedArea === area
+              !selectedArea
                 ? "bg-primary text-primary-foreground shadow-md"
                 : "bg-secondary text-secondary-foreground"
             )}
           >
-            {area}
+            All Areas
           </button>
-        ))}
-      </HorizontalScrollStrip>
+          {areas.map((area) => (
+            <button
+              key={area}
+              type="button"
+              onClick={() => setSelectedArea(selectedArea === area ? null : area)}
+              className={cn(
+                "px-4 py-2 rounded-full text-sm font-medium shrink-0 transition-all min-h-11",
+                selectedArea === area
+                  ? "bg-primary text-primary-foreground shadow-md"
+                  : "bg-secondary text-secondary-foreground"
+              )}
+            >
+              {area}
+            </button>
+          ))}
+        </HorizontalScrollStrip>
+      ) : null}
 
       {filteredAreas.map((area, areaIndex) => (
         <motion.section
@@ -225,21 +259,6 @@ export function StoresView() {
         </motion.section>
       ))}
 
-      {stores.length === 0 && (
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="flex flex-col items-center justify-center py-16 text-center"
-        >
-          <div className="flex items-center justify-center size-20 rounded-full bg-muted mb-4">
-            <StoreIcon className="size-10 text-muted-foreground" aria-hidden />
-          </div>
-          <h3 className="text-lg font-semibold mb-1">No Stores Yet</h3>
-          <p className="text-muted-foreground text-sm">
-            Add stores in Settings to plan your route
-          </p>
-        </motion.div>
-      )}
     </div>
   )
 }

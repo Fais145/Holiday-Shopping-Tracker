@@ -1,5 +1,6 @@
 "use client"
 
+import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import {
@@ -29,9 +30,9 @@ import {
   useAppStore,
 } from "@/lib/store"
 import { useAppBackNavigation } from "@/hooks/use-app-back-navigation"
-import { cn } from "@/lib/utils"
 
 export function SettingsView() {
+  const router = useRouter()
   const {
     stores,
     items,
@@ -42,8 +43,9 @@ export function SettingsView() {
     removeCategory,
     exportData,
     importData,
+    loadDemoData,
   } = useAppStore()
-  const goBack = useAppBackNavigation("/stores")
+  const goBack = useAppBackNavigation("/search")
   const [showAddStore, setShowAddStore] = useState(false)
   const [newStoreName, setNewStoreName] = useState("")
   const [newStoreArea, setNewStoreArea] = useState("")
@@ -55,11 +57,11 @@ export function SettingsView() {
   const [copied, setCopied] = useState(false)
   const [importSuccess, setImportSuccess] = useState(false)
   const [newCategoryLabel, setNewCategoryLabel] = useState("")
+  const [showDemoConfirm, setShowDemoConfirm] = useState(false)
 
   // Stats
   const huntingCount = items.filter((i) => showsOnTodayView(i)).length
   const boughtCount = items.filter((i) => isQuestComplete(i)).length
-  const packedCount = items.filter((i) => i.isPacked).length
 
   const handleAddStore = () => {
     if (!newStoreName.trim()) return
@@ -99,6 +101,12 @@ export function SettingsView() {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+  }
+
+  const confirmLoadDemoData = () => {
+    loadDemoData()
+    setShowDemoConfirm(false)
+    router.push("/stores")
   }
 
   const handleImport = () => {
@@ -366,9 +374,86 @@ export function SettingsView() {
         ))}
       </section>
 
+      {/* Offline PWA */}
+      <section className="flex flex-col gap-2 rounded-2xl bg-card ring-1 ring-border/50 p-4">
+        <h2 className="font-bold text-lg">Offline</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          Works offline after the first full load with internet. Your list lives in this
+          browser&apos;s storage — nothing is sent to a server.
+        </p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          <span className="font-medium text-foreground">Before the trip:</span> export a JSON backup
+          (copy or download) so you can recover if you clear site data or switch devices. Import from
+          backup always works the same way.
+        </p>
+      </section>
+
+      {/* Demo data (optional) */}
+      <section className="flex flex-col gap-3 rounded-2xl bg-card ring-1 ring-border/50 p-4">
+        <div className="flex items-center gap-2">
+          <Sparkles className="size-5 text-primary shrink-0" aria-hidden />
+          <h2 className="font-bold text-lg">Try the app</h2>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed -mt-1">
+          Load a small curated sample — a few shops and five example quests so you can tap around
+          without touching your real list.
+        </p>
+        {!showDemoConfirm ? (
+          <motion.div whileTap={{ scale: 0.98 }}>
+            <Button
+              type="button"
+              variant="secondary"
+              className="w-full h-12 rounded-xl font-semibold"
+              onClick={() => setShowDemoConfirm(true)}
+            >
+              <Sparkles className="size-5 mr-2" />
+              Load demo data
+            </Button>
+          </motion.div>
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col gap-3 rounded-xl border border-border bg-muted/30 p-4"
+            role="alertdialog"
+            aria-labelledby="demo-confirm-title"
+            aria-describedby="demo-confirm-desc"
+          >
+            <p id="demo-confirm-title" className="text-sm font-semibold text-foreground">
+              Replace your list with demo data?
+            </p>
+            <p id="demo-confirm-desc" className="text-sm text-muted-foreground leading-relaxed">
+              This replaces your current shops and quest list with the sample. Export a backup first
+              if you need to keep what you have.
+            </p>
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1 h-12 rounded-xl font-semibold"
+                onClick={() => setShowDemoConfirm(false)}
+              >
+                No
+              </Button>
+              <Button
+                type="button"
+                className="flex-1 h-12 rounded-xl font-semibold"
+                onClick={confirmLoadDemoData}
+              >
+                Yes, load demo
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </section>
+
       {/* Backup & Restore */}
       <section className="flex flex-col gap-3">
         <h2 className="font-bold text-lg">Backup & Restore</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed -mt-1">
+          Keep a recent <span className="font-medium text-foreground">JSON export</span> somewhere
+          safe (files app, email to yourself). You can paste or re-import it anytime.
+        </p>
 
         <div className="flex flex-col gap-2">
           <motion.div whileTap={{ scale: 0.98 }}>

@@ -1,10 +1,12 @@
 "use client"
 
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { ChevronDown, MapPin, Package, Sparkles, Trophy } from "lucide-react"
 import { useState } from "react"
 import { ItemCard } from "@/components/item-card"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
   compareItemsForStoreShelf,
@@ -66,9 +68,11 @@ export function TodayView() {
         <div className="relative">
           <p className="text-sm font-medium opacity-90 mb-1">Today&apos;s Shopping Quest</p>
           <h1 className="text-2xl font-bold mb-4">
-            {huntingItems.length > 0 
-              ? `${huntingItems.length} treasures to find!` 
-              : "All done for today!"}
+            {totalItems === 0
+              ? "Your quest log is ready"
+              : huntingItems.length > 0
+                ? `${huntingItems.length} treasures to find!`
+                : "All done for today!"}
           </h1>
           
           {/* Progress */}
@@ -171,8 +175,33 @@ export function TodayView() {
         )
       })}
 
-      {/* Empty State */}
-      {huntingItems.length === 0 && (
+      {/* Empty / all caught up */}
+      {totalItems === 0 ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center justify-center gap-3 rounded-2xl bg-card p-6 text-center ring-1 ring-border/50"
+        >
+          <div className="flex items-center justify-center size-12 rounded-full bg-primary/10">
+            <Sparkles className="size-6 text-primary" aria-hidden />
+          </div>
+          <p className="text-sm font-medium text-foreground max-w-sm leading-relaxed">
+            Add your first shopping quest or import a backup.
+          </p>
+          <div className="flex flex-col w-full max-w-xs gap-2 pt-1">
+            <Button asChild className="h-12 rounded-xl font-semibold">
+              <Link href="/add" prefetch>
+                Add quest item
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-12 rounded-xl font-semibold">
+              <Link href="/settings" prefetch>
+                Settings — import backup
+              </Link>
+            </Button>
+          </div>
+        </motion.div>
+      ) : huntingItems.length === 0 ? (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -186,7 +215,7 @@ export function TodayView() {
             You&apos;ve found everything on your list. Amazing work!
           </p>
         </motion.div>
-      )}
+      ) : null}
     </div>
   )
 }

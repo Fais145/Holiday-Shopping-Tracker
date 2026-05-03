@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { useState } from "react"
 import { motion } from "framer-motion"
 import { Search, SlidersHorizontal, X } from "lucide-react"
@@ -25,12 +26,15 @@ export type ItemBrowseViewProps = {
   title: string
   subtitle: string
   emptySearchHint?: string
+  /** When true, skip the large empty-state card (e.g. Lookup shows a dialog instead). */
+  omitZeroItemsCard?: boolean
 }
 
 export function ItemBrowseView({
   title,
   subtitle,
   emptySearchHint = "Try a different search or adjust your filters",
+  omitZeroItemsCard = false,
 }: ItemBrowseViewProps) {
   const { items, stores, categories } = useAppStore()
   const [query, setQuery] = useState("")
@@ -247,6 +251,30 @@ export function ItemBrowseView({
         </p>
       </div>
 
+      {items.length === 0 && !omitZeroItemsCard ? (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="flex flex-col items-center gap-3 rounded-2xl bg-card p-6 text-center ring-1 ring-border/50"
+        >
+          <Search className="size-10 text-muted-foreground/40 shrink-0" aria-hidden />
+          <p className="text-sm font-medium text-foreground max-w-sm leading-relaxed">
+            Add your first shopping quest or import a backup.
+          </p>
+          <div className="flex flex-col w-full max-w-xs gap-2 pt-1">
+            <Button asChild className="h-12 rounded-xl font-semibold">
+              <Link href="/add" prefetch>
+                Add quest item
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-12 rounded-xl font-semibold">
+              <Link href="/settings" prefetch>
+                Settings — import backup
+              </Link>
+            </Button>
+          </div>
+        </motion.div>
+      ) : items.length > 0 ? (
       <div className="flex flex-col gap-3">
         {filteredItems.map((item) => (
           <motion.div
@@ -265,8 +293,9 @@ export function ItemBrowseView({
           </motion.div>
         ))}
       </div>
+      ) : null}
 
-      {filteredItems.length === 0 && (
+      {items.length > 0 && filteredItems.length === 0 && (
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
