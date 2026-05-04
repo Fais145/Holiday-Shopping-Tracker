@@ -7,12 +7,41 @@ import { motion } from "framer-motion"
 import { isQuestComplete, showsOnTodayView, useAppStore } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
-const leftNavItems = [{ href: "/stores", label: "Stores", icon: MapPin }]
-const centerNavItem = { href: "/add", label: "Add", icon: Plus }
-const rightNavItems = [
+const navItems = [
+  { href: "/stores", label: "Stores", icon: MapPin },
   { href: "/search", label: "Lookup", icon: Search },
   { href: "/haul", label: "Haul", icon: ShoppingBag },
 ]
+
+/** Sits just above the bottom tab bar (clears nav + safe area). */
+function FloatingAddButton() {
+  const pathname = usePathname() ?? ""
+  const isAdd = pathname === "/add"
+
+  return (
+    <Link
+      href="/add"
+      prefetch
+      aria-label="Add item"
+      className={cn(
+        "fixed right-4 z-60 flex size-14 items-center justify-center rounded-full text-primary-foreground ring-4 ring-background sm:size-15",
+        "bg-linear-to-br from-primary to-primary/80 shadow-xl shadow-primary/30",
+        "motion-safe:transition-[box-shadow,transform] motion-safe:hover:scale-[1.03] motion-safe:active:scale-[0.97]",
+        isAdd && "ring-primary/35 shadow-primary/40"
+      )}
+      style={{
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 5.5rem)",
+      }}
+    >
+      <motion.span
+        whileTap={{ scale: 0.92 }}
+        className="flex size-full items-center justify-center rounded-[inherit]"
+      >
+        <Plus className="size-7 sm:size-8" strokeWidth={2.5} aria-hidden />
+      </motion.span>
+    </Link>
+  )
+}
 
 export function BottomNav() {
   const pathname = usePathname() ?? ""
@@ -26,15 +55,11 @@ export function BottomNav() {
     return pathname === href
   }
 
-  function renderNavLink(item: (typeof leftNavItems)[0]) {
+  function renderNavLink(item: (typeof navItems)[number]) {
     const Icon = item.icon
     const isActive = isNavActive(item.href)
     const count =
-      item.href === "/stores"
-        ? huntingCount
-        : item.href === "/haul"
-          ? boughtCount
-          : 0
+      item.href === "/stores" ? huntingCount : item.href === "/haul" ? boughtCount : 0
 
     return (
       <Link
@@ -43,7 +68,7 @@ export function BottomNav() {
         prefetch
         aria-label={item.label}
         className={cn(
-          "relative flex min-w-0 shrink-0 flex-col items-center justify-center gap-0.5 px-2 py-2 transition-colors",
+          "relative flex min-w-0 max-w-26 flex-1 flex-col items-center justify-center gap-0.5 px-3 py-2 transition-colors",
           isActive ? "text-primary" : "text-muted-foreground"
         )}
       >
@@ -65,39 +90,26 @@ export function BottomNav() {
         {isActive && (
           <motion.span
             layoutId="nav-indicator"
-            className="absolute inset-x-1 top-0 h-0.5 rounded-full bg-primary"
+            className="absolute inset-x-2 top-0 h-0.5 rounded-full bg-primary"
           />
         )}
       </Link>
     )
   }
 
-  const CenterIcon = centerNavItem.icon
-
   return (
-    <motion.nav
-      initial={{ y: 100 }}
-      animate={{ y: 0 }}
-      className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/95 pb-safe backdrop-blur-xl"
-    >
-      <div className="mx-auto flex h-18 max-w-lg items-end justify-center gap-5 px-3 pb-2 pt-1 sm:gap-6 sm:px-4">
-        {leftNavItems.map((item) => renderNavLink(item))}
-        <div className="relative z-10 flex shrink-0 flex-col items-center gap-0.5 px-2 py-2 translate-y-4 sm:translate-y-0">
-          <Link href={centerNavItem.href} prefetch aria-label={centerNavItem.label}>
-            <motion.span
-              whileTap={{ scale: 0.9 }}
-              className="flex size-14 items-center justify-center rounded-full bg-gradient-to-br from-primary to-primary/80 text-primary-foreground shadow-xl shadow-primary/30 ring-4 ring-background"
-            >
-              <CenterIcon className="size-6" strokeWidth={2.5} />
-            </motion.span>
-          </Link>
-          <span className="text-[10px] font-medium leading-none invisible select-none" aria-hidden>
-            Add
-          </span>
+    <>
+      <FloatingAddButton />
+      <motion.nav
+        initial={{ y: 100 }}
+        animate={{ y: 0 }}
+        className="fixed inset-x-0 bottom-0 z-50 border-t border-border/50 bg-card/95 pb-safe backdrop-blur-xl"
+      >
+        <div className="mx-auto flex h-18 max-w-lg items-center justify-center gap-2 px-4 pb-2 pt-2 sm:gap-4">
+          {navItems.map((item) => renderNavLink(item))}
         </div>
-        {rightNavItems.map((item) => renderNavLink(item))}
-      </div>
-    </motion.nav>
+      </motion.nav>
+    </>
   )
 }
 

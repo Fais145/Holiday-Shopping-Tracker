@@ -25,8 +25,8 @@ export interface Store {
 export interface Item {
   id: string
   name: string
-  /** Empty allowed (optional recipient on add). */
-  forWho: string
+  /** Recipient names (deduped, order normalised on save). Empty = not specified. */
+  forRecipients: string[]
   /** Tags from the category catalog — empty means uncategorized in filters. */
   categoryIds: string[]
   quantity: number
@@ -79,6 +79,43 @@ const EXTRA_CATEGORY_COLORS = [
 
 /** Filter chip id when matching items with zero categories. */
 export const FILTER_UNCATEGORIZED = "__uncategorized__" as const
+
+/** Dedupe case-insensitively, trim, sort alphabetically for stable grouping & export. */
+export function normalizeRecipientNames(names: readonly string[]): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const n of names) {
+    if (typeof n !== "string") continue
+    const t = n.trim()
+    if (!t) continue
+    const low = t.toLowerCase()
+    if (seen.has(low)) continue
+    seen.add(low)
+    out.push(t)
+  }
+  out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+  return out
+}
+
+/** Canonical haul grouping key from an item’s recipient set (same set → same bucket). */
+export const RECIPIENT_GROUP_EMPTY = "__none__" as const
+
+export function recipientGroupKey(item: Item): string {
+  const n = normalizeRecipientNames(item.forRecipients)
+  if (n.length === 0) return RECIPIENT_GROUP_EMPTY
+  return n.join("\u0001")
+}
+
+/** Inline label, e.g. `Mum & Dad`. */
+export function formatRecipientsDisplay(forRecipients: readonly string[]): string {
+  return normalizeRecipientNames(forRecipients).join(" & ")
+}
+
+/** Heading from a haul group key returned by `recipientGroupKey`. */
+export function formatRecipientGroupHeading(groupKey: string): string {
+  if (groupKey === RECIPIENT_GROUP_EMPTY) return "Recipient not set"
+  return groupKey.split("\u0001").join(" & ")
+}
 
 export function slugCategoryId(label: string): string {
   return label
@@ -205,6 +242,25 @@ function migrateLegacyItemStatus(status: unknown): StoreOptionStatus {
   }
 }
 
+function coerceForRecipients(raw: Record<string, unknown>): string[] {
+  if (Array.isArray(raw.forRecipients)) {
+    const strings = raw.forRecipients.filter((x): x is string => typeof x === "string")
+    return normalizeRecipientNames(strings)
+  }
+  const legacy =
+    typeof raw.forWho === "string"
+      ? raw.forWho.trim()
+      : typeof raw.who === "string"
+        ? raw.who.trim()
+        : ""
+  if (!legacy) return []
+  if (legacy.includes(",") || legacy.includes("&")) {
+    const parts = legacy.split(/[,&]+/).map((s) => s.trim()).filter(Boolean)
+    return normalizeRecipientNames(parts)
+  }
+  return normalizeRecipientNames([legacy])
+}
+
 /** Normalize persisted or imported JSON into a valid Item (never throws). */
 export function normalizeItem(raw: unknown): Item | null {
   if (!isRecord(raw)) {
@@ -282,8 +338,7 @@ export function normalizeItem(raw: unknown): Item | null {
       : typeof raw.title === "string"
         ? raw.title
         : "Item"
-  const forWho =
-    typeof raw.forWho === "string" ? raw.forWho : typeof raw.who === "string" ? raw.who : ""
+  const forRecipients = coerceForRecipients(raw)
   const categoryIds = coerceCategoryIds(raw)
   const createdAt =
     typeof raw.createdAt === "string" ? raw.createdAt : new Date().toISOString()
@@ -293,7 +348,7 @@ export function normalizeItem(raw: unknown): Item | null {
   return {
     id,
     name,
-    forWho,
+    forRecipients,
     categoryIds,
     quantity,
     quantityBought,
@@ -722,7 +777,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "1",
     name: "Nyota Blind Box (Cat Series)",
-    forWho: "Me",
+    forRecipients: ["Me"],
     categoryIds: ["merch"],
     quantity: 3,
     quantityBought: 0,
@@ -736,7 +791,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "2",
     name: "Onitsuka Tiger Mexico 66",
-    forWho: "Me",
+    forRecipients: ["Me"],
     categoryIds: ["fashion"],
     quantity: 1,
     quantityBought: 0,
@@ -748,7 +803,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "3",
     name: "Spicy Furikake (Shrimp)",
-    forWho: "Mom",
+    forRecipients: ["Mom"],
     categoryIds: ["food"],
     quantity: 5,
     quantityBought: 2,
@@ -761,7 +816,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "4",
     name: "Premium Hojicha Powder",
-    forWho: "Gifts",
+    forRecipients: ["Gifts"],
     categoryIds: ["food"],
     quantity: 2,
     quantityBought: 0,
@@ -773,7 +828,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "5",
     name: "Zojirushi Thermos 500ml",
-    forWho: "Dad",
+    forRecipients: ["Dad"],
     categoryIds: ["home"],
     quantity: 1,
     quantityBought: 0,
@@ -785,7 +840,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "6",
     name: "Aesthetic Journal Stickers",
-    forWho: "Me",
+    forRecipients: ["Me"],
     categoryIds: ["misc"],
     quantity: 10,
     quantityBought: 4,
@@ -798,7 +853,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "7",
     name: "Tokyo Banana (Original)",
-    forWho: "Office",
+    forRecipients: ["Office"],
     categoryIds: ["food"],
     quantity: 2,
     quantityBought: 0,
@@ -810,7 +865,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "8",
     name: "Blue Lock - Isagi Merch",
-    forWho: "Brother",
+    forRecipients: ["Brother"],
     categoryIds: ["merch"],
     quantity: 1,
     quantityBought: 0,
@@ -821,7 +876,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "9",
     name: "JJK Gojo Figure",
-    forWho: "Me",
+    forRecipients: ["Me"],
     categoryIds: ["merch"],
     quantity: 1,
     quantityBought: 0,
@@ -833,7 +888,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "10",
     name: "Shiseido Lip Balm",
-    forWho: "Sister",
+    forRecipients: ["Sister"],
     categoryIds: ["beauty"],
     quantity: 2,
     quantityBought: 0,
@@ -845,7 +900,7 @@ export const ARCHIVE_SAMPLE_ITEMS: Item[] = [
   baseItem({
     id: "11",
     name: "Kit Kat Variety Pack",
-    forWho: "Gifts",
+    forRecipients: ["Gifts"],
     categoryIds: ["food"],
     quantity: 3,
     quantityBought: 0,

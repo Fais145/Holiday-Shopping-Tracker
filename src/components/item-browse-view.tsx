@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { ItemCard } from "@/components/item-card"
 import {
   FILTER_UNCATEGORIZED,
+  formatRecipientsDisplay,
   getHolidayPlanningBucket,
   getCategoryPresentation,
   getItemRouteStoreIds,
@@ -72,9 +73,13 @@ export function ItemBrowseView({
             st.area.toLowerCase().includes(searchLower))
         )
       })
+      const recipientLine = formatRecipientsDisplay(item.forRecipients).toLowerCase()
+      const matchesRecipient =
+        item.forRecipients.some((r) => r.toLowerCase().includes(searchLower)) ||
+        (recipientLine.length > 0 && recipientLine.includes(searchLower))
       const matchesQuery =
         item.name.toLowerCase().includes(searchLower) ||
-        item.forWho.toLowerCase().includes(searchLower) ||
+        matchesRecipient ||
         item.notes?.toLowerCase().includes(searchLower) ||
         matchesRouteStore
       if (!matchesQuery) return false

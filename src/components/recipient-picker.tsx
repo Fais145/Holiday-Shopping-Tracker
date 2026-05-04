@@ -4,14 +4,20 @@ import { useState } from "react"
 import { motion } from "framer-motion"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { formatRecipientsDisplay, normalizeRecipientNames } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 type RecipientPickerProps = {
-  value: string
-  onChange: (next: string) => void
+  value: readonly string[]
+  onChange: (next: string[]) => void
   /** Unique trimmed names derived from existing items — sorted for display */
   suggestions: readonly string[]
   inputId?: string
+}
+
+function chipSelected(name: string, selected: readonly string[]): boolean {
+  const low = name.trim().toLowerCase()
+  return selected.some((s) => s.trim().toLowerCase() === low)
 }
 
 export function RecipientPicker({
@@ -21,12 +27,24 @@ export function RecipientPicker({
   inputId = "recipient-picker-input",
 }: RecipientPickerProps) {
   const [newRecipientLabel, setNewRecipientLabel] = useState("")
-  const trimmedLower = value.trim().toLowerCase()
+  const normalized = normalizeRecipientNames(value)
+
+  const toggleChip = (name: string) => {
+    const low = name.trim().toLowerCase()
+    if (chipSelected(name, value)) {
+      onChange(value.filter((s) => s.trim().toLowerCase() !== low))
+    } else {
+      onChange(normalizeRecipientNames([...value, name.trim()]))
+    }
+    setNewRecipientLabel("")
+  }
 
   const commitNewRecipient = () => {
     const t = newRecipientLabel.trim()
     if (!t) return
-    onChange(t)
+    if (!chipSelected(t, value)) {
+      onChange(normalizeRecipientNames([...value, t]))
+    }
     setNewRecipientLabel("")
   }
 
@@ -38,12 +56,13 @@ export function RecipientPicker({
         Who&apos;s it for? <span className="text-muted-foreground font-normal">(optional)</span>
       </label>
       <p className="text-xs text-muted-foreground -mt-2">
-        Tap a name you&apos;ve used before, or add a new one — same idea as categories below.
+        Tap names to build your list — same idea as categories. Multiple people group together in your
+        haul (e.g. Mum &amp; Dad vs Mum only).
       </p>
       {suggestions.length > 0 ? (
         <div className="flex flex-wrap gap-2">
           {suggestions.map((name) => {
-            const selected = trimmedLower !== "" && trimmedLower === name.trim().toLowerCase()
+            const selected = chipSelected(name, value)
             return (
               <motion.button
                 key={name}
@@ -51,11 +70,7 @@ export function RecipientPicker({
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   clearDraft()
-                  if (selected) {
-                    onChange("")
-                  } else {
-                    onChange(name)
-                  }
+                  toggleChip(name)
                 }}
                 className={cn(
                   "px-4 py-2.5 rounded-xl text-sm font-medium transition-all",
@@ -97,19 +112,20 @@ export function RecipientPicker({
           Add recipient
         </Button>
       </div>
-      {value.trim() ? (
+      {normalized.length > 0 ? (
         <p className="text-xs text-muted-foreground rounded-xl bg-muted/40 px-3 py-2">
-          Selected: <span className="font-medium text-foreground">{value.trim()}</span>
+          Selected:{" "}
+          <span className="font-medium text-foreground">{formatRecipientsDisplay(value)}</span>
           {" · "}
           <button
             type="button"
             className="underline underline-offset-2 font-medium text-foreground hover:text-primary"
             onClick={() => {
               clearDraft()
-              onChange("")
+              onChange([])
             }}
           >
-            Clear
+            Clear all
           </button>
         </p>
       ) : null}

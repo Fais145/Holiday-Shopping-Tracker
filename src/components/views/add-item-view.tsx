@@ -12,7 +12,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { RecipientPicker } from "@/components/recipient-picker"
 import { ShopPrioritySortableList } from "@/components/shop-priority-sortable-list"
-import { type Store, getCategoryPresentation, getStoreById, useAppStore } from "@/lib/store"
+import {
+  type Store,
+  getCategoryPresentation,
+  getStoreById,
+  normalizeRecipientNames,
+  useAppStore,
+} from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 export function AddItemView() {
@@ -43,7 +49,7 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
   const [showShopPriority, setShowShopPriority] = useState(false)
   const [storeSuggestionsOpen, setStoreSuggestionsOpen] = useState(false)
   const storeBlurTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [forWho, setForWho] = useState("")
+  const [forRecipients, setForRecipients] = useState<string[]>([])
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [newCategoryLabel, setNewCategoryLabel] = useState("")
   const [quantity, setQuantity] = useState(1)
@@ -58,12 +64,14 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
     const seen = new Set<string>()
     const list: string[] = []
     for (const it of items) {
-      const w = it.forWho.trim()
-      if (!w) continue
-      const key = w.toLowerCase()
-      if (seen.has(key)) continue
-      seen.add(key)
-      list.push(w)
+      for (const r of it.forRecipients) {
+        const w = r.trim()
+        if (!w) continue
+        const key = w.toLowerCase()
+        if (seen.has(key)) continue
+        seen.add(key)
+        list.push(w)
+      }
     }
     list.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
     return list
@@ -80,7 +88,7 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
     initEditRef.current = editItemId
     setShowDeleteConfirm(false)
     setName(editTarget.name)
-    setForWho(editTarget.forWho)
+    setForRecipients(normalizeRecipientNames(editTarget.forRecipients))
     setSelectedCategoryIds([...editTarget.categoryIds])
     setQuantity(editTarget.quantity)
     setNotes(editTarget.notes ?? "")
@@ -255,7 +263,7 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
 
       updateItem(editTarget.id, {
         name: name.trim(),
-        forWho: forWho.trim(),
+        forRecipients: normalizeRecipientNames(forRecipients),
         categoryIds: [...new Set(selectedCategoryIds)],
         quantity,
         currentStoreId,
@@ -273,7 +281,7 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
     const { currentStoreId, backupStoreIds } = route
     addItem({
       name: name.trim(),
-      forWho: forWho.trim(),
+      forRecipients: normalizeRecipientNames(forRecipients),
       categoryIds: [...new Set(selectedCategoryIds)],
       quantity,
       quantityBought: 0,
@@ -294,7 +302,7 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
       setSelectedStoreIds([])
       setShowShopPriority(false)
       setStoreSuggestionsOpen(false)
-      setForWho("")
+      setForRecipients([])
       setSelectedCategoryIds([])
       setNewCategoryLabel("")
       setQuantity(1)
@@ -568,8 +576,8 @@ function ItemEditorView({ editItemId }: { editItemId?: string }) {
 
       <RecipientPicker
         key={editItemId ?? "add"}
-        value={forWho}
-        onChange={setForWho}
+        value={forRecipients}
+        onChange={setForRecipients}
         suggestions={recipientSuggestions}
         inputId={isEdit ? "edit-item-recipient" : "add-item-recipient"}
       />

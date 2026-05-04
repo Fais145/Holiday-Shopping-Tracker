@@ -26,6 +26,7 @@ import {
   getProgressPercentage,
   getShelfBlockersElsewhere,
   getStoreById,
+  formatRecipientsDisplay,
   getStoreOptionStatus,
   isQuestComplete,
   showsDeferredQuickActionsAt,
@@ -112,6 +113,7 @@ export function ItemCard({
     item.categoryIds[0] != null
       ? getCategoryPresentation(item.categoryIds[0], categories)
       : { label: "", color: "bg-muted text-muted-foreground", emoji: "misc" }
+  const recipientsLabel = formatRecipientsDisplay(item.forRecipients)
   const routePrimaryStatus =
     item.currentStoreId !== null
       ? getStoreOptionStatus(item, item.currentStoreId)
@@ -164,7 +166,7 @@ export function ItemCard({
           <p className="font-medium text-sm truncate">{item.name}</p>
           <p className="text-xs text-muted-foreground truncate">
             {item.quantityBought}/{item.quantity}
-            {item.forWho.trim() ? ` · ${item.forWho.trim()}` : ""}
+            {recipientsLabel ? ` · ${recipientsLabel}` : ""}
           </p>
         </div>
         <Button variant="ghost" size="icon" className="size-8 shrink-0 rounded-lg text-muted-foreground" asChild>
@@ -221,10 +223,10 @@ export function ItemCard({
             <h3 className="font-semibold text-base leading-tight text-balance">
               {item.name}
             </h3>
-            {item.forWho.trim() ? (
+            {recipientsLabel ? (
               <p className="text-sm text-muted-foreground mt-0.5 flex items-center gap-1">
                 <Sparkles className="size-3 shrink-0" />
-                For {item.forWho.trim()}
+                For {recipientsLabel}
               </p>
             ) : null}
           </div>

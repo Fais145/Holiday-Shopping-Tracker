@@ -20,11 +20,15 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import {
+  formatRecipientsDisplay,
+  formatRecipientGroupHeading,
   getCategoryPresentation,
   getCurrentStoreStatus,
   getItemRouteStoreIds,
   getStoreById,
   isQuestComplete,
+  recipientGroupKey,
+  RECIPIENT_GROUP_EMPTY,
   useAppStore,
 } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -40,9 +44,6 @@ export function BoughtView() {
     resumeDeferOrSkipAt,
   } = useAppStore()
   const categoriesCatalog = useAppStore((s) => s.categories)
-
-  const recipientGroupKey = (item: { forWho: string }) =>
-    item.forWho.trim() || "Recipient not set"
 
   const categoriesSummary = (item: (typeof items)[number]) =>
     item.categoryIds.length === 0
@@ -92,7 +93,11 @@ export function BoughtView() {
     return acc
   }, {})
 
-  const recipients = Object.keys(byRecipient).sort()
+  const recipients = Object.keys(byRecipient).sort((a, b) => {
+    if (a === RECIPIENT_GROUP_EMPTY) return 1
+    if (b === RECIPIENT_GROUP_EMPTY) return -1
+    return a.localeCompare(b, undefined, { sensitivity: "base" })
+  })
 
   return (
     <div className="flex flex-col gap-5 pb-28">
@@ -194,10 +199,10 @@ export function BoughtView() {
               <div className="flex items-center gap-2 mb-2">
                 <Gift className="size-4 text-muted-foreground" />
                 <h3 className="font-semibold text-sm text-muted-foreground">
-                  {recipient === "Recipient not set" ? (
+                  {recipient === RECIPIENT_GROUP_EMPTY ? (
                     <span>No recipient set</span>
                   ) : (
-                    <>For {recipient}</>
+                    <>For {formatRecipientGroupHeading(recipient)}</>
                   )}
                 </h3>
                 <Badge variant="outline" className="text-xs tabular-nums">
@@ -311,6 +316,7 @@ export function BoughtView() {
           
           <div className="flex flex-col gap-3">
             {soldOutItems.map((item) => {
+              const recipientsLine = formatRecipientsDisplay(item.forRecipients)
               const alternateIds =
                 item.currentStoreId != null
                   ? getItemRouteStoreIds(item).filter((id) => id !== item.currentStoreId)
@@ -343,9 +349,7 @@ export function BoughtView() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold">{item.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {item.forWho.trim()
-                          ? `For ${item.forWho.trim()} · `
-                          : null}
+                        {recipientsLine ? `For ${recipientsLine} · ` : null}
                         {item.quantity}x needed
                       </p>
                     </div>
@@ -411,6 +415,7 @@ export function BoughtView() {
           
           <div className="flex flex-col gap-2">
             {deferredItems.map((item) => {
+              const recipientsLine = formatRecipientsDisplay(item.forRecipients)
               const defIcon =
                 item.categoryIds[0] != null
                   ? getCategoryPresentation(item.categoryIds[0], categoriesCatalog)
@@ -436,7 +441,7 @@ export function BoughtView() {
                     {item.name}
                   </p>
                   <p className="text-xs text-muted-foreground/70">
-                    {item.forWho.trim() ? `For ${item.forWho.trim()} · ` : null}
+                    {recipientsLine ? `For ${recipientsLine} · ` : null}
                     {getCurrentStoreStatus(item) === "skip" ? "Skip" : "Check later"}
                   </p>
                 </div>
